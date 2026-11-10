@@ -4,6 +4,8 @@
 
 Versões Cargo/Tauri/lock em 0.1.9. Publicada no fork `crescent/mk8del` (o launcher empacotado procura atualizações lá). Reúne as mudanças abaixo.
 
+Instalador: `MK8-online-0.1.9-setup.exe`, SHA-256 `4560f3314ff8bcb7af606c7242d245c83b3d1fb0c6368e3ad4417851d77a830b`, com `.sha256` e fontes/script FFmpeg anexados; o `digest` do GitHub confere. Release Latest em https://github.com/crescent/mk8del/releases/tag/v0.1.9. Os 18 testes de navegador passaram no launcher empacotado; o executável não contém caminhos pessoais. Instalação/desinstalação silenciosa não foi testada para não sobrescrever o registro e os atalhos da instalação pessoal. Sem relay de internet embutido, como na 0.1.8.
+
 - **Perfil:** nova aba com o nome de exibição e o Mii (nome, tipo, cor favorita). `crates/installer/src/mii.rs`/`avatar.rs` voltaram a compilar e `spawn_game` chama `mii::configure` (variáveis `MK8_MII_*` e `MK8_MII_PROFILE_PATH`). `MK8_EXPERIMENTAL_NO_MII=1` continua: o renderizador Mii segue desligado, só CharInfo e o editor de nome do jogo voltam. Nome padrão "Player"/"Jogador" conforme o idioma.
 - **Configurações:** a aba edita `user-no-mii/mk8d.ini` só com o jogo fechado (`apps/launcher/src/game_settings.rs`): teclas/botões `bind_key_*`/`bind_pad_*`, `frame_gen` (120 fps, ainda não testado no MK8), tela cheia e FPS. Linhas desconhecidas são preservadas.
 - **Teclado padrão do MK8:** `toolchain/host.py` troca o `DEF_KEY` do SMM2 (setas: direção; X/Z: acelerar/frear; Espaço: item; Shift esquerdo: derrapar). Exige build com `--runtime-only`. O botão do menu do jogo agora se chama "Friend rooms".
