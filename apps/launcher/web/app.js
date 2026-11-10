@@ -19,6 +19,16 @@ function notice(text, error = false) {
   i18n.text($("notice"), text);
   $("notice").classList.toggle("error", error);
 }
+// Confirmation in the launcher's own dialog, not the WebView's native confirm().
+function ask(text) {
+  const box = $("ask");
+  i18n.text($("ask-text"), text);
+  box.returnValue = "";
+  box.showModal();
+  return new Promise((resolve) =>
+    box.addEventListener("close", () => resolve(box.returnValue === "ok"), { once: true }),
+  );
+}
 async function action(fn) {
   if (busy) return;
   busy = true;
@@ -69,13 +79,6 @@ steps.forEach((id) => {
     if (open) userOpened.add(id);
     else userOpened.delete(id);
     openStep(id, open);
-  };
-});
-document.querySelectorAll(".stepper li").forEach((item) => {
-  item.onclick = () => {
-    userOpened.add(item.dataset.step);
-    openStep(item.dataset.step, true);
-    $(item.dataset.step).scrollIntoView({ behavior: "smooth", block: "start" });
   };
 });
 document.querySelectorAll("[data-log]").forEach((button) => {
@@ -158,7 +161,7 @@ $("build").onclick = () =>
   });
 $("cancel").onclick = () =>
   action(async () => {
-    if (!confirm(i18n.t("Cancelar a build? O que já foi feito é reaproveitado na próxima vez."))) return { message: "A build continua." };
+    if (!(await ask("Cancelar a build? O que já foi feito é reaproveitado na próxima vez."))) return { message: "A build continua." };
     return api("build/cancel", {});
   });
 $("go-play").onclick = () => showTab("play");
@@ -418,6 +421,173 @@ $("leave").onclick = () =>
     return result;
   });
 
+/* ---------- Perfil: nome e Mii ---------- */
+// The 12 Mii favourite colours, in the game's order (CharInfo favorite_color 0-11).
+const miiColors = [
+  ["#d21e14", "Vermelho"], ["#ff6e19", "Laranja"], ["#ffd820", "Amarelo"], ["#78d220", "Verde-claro"],
+  ["#007830", "Verde"], ["#0a48b4", "Azul"], ["#3caade", "Azul-claro"], ["#f55a7d", "Rosa"],
+  ["#7328ad", "Roxo"], ["#483818", "Marrom"], ["#e0e0e0", "Branco"], ["#181814", "Preto"],
+];
+let miiFace = undefined;
+miiColors.forEach(([hex, name], index) => {
+  const label = document.createElement("label");
+  label.className = "swatch";
+  label.style.setProperty("--swatch", hex);
+  const input = document.createElement("input");
+  Object.assign(input, { type: "radio", name: "mii-color", value: String(index) });
+  input.setAttribute("aria-label", name);
+  label.title = name;
+  label.append(input);
+  $("mii-colors").append(label);
+});
+async function loadProfile() {
+  const profile = await api("profile");
+  $("username").value = profile.name;
+  const mii = profile.mii || { name: profile.name.slice(0, 10), color: 0, gender: 0 };
+  miiFace = profile.mii?.face;
+  $("mii-name").value = mii.name;
+  document.querySelector(`input[name="mii-gender"][value="${mii.gender}"]`).checked = true;
+  document.querySelector(`input[name="mii-color"][value="${mii.color}"]`).checked = true;
+}
+$("mii-form").onsubmit = (event) => {
+  event.preventDefault();
+  action(() => api("profile", {
+    mii: {
+      name: $("mii-name").value.trim(),
+      gender: Number(document.querySelector('input[name="mii-gender"]:checked').value),
+      color: Number(document.querySelector('input[name="mii-color"]:checked')?.value ?? 0),
+      ...(miiFace ? { face: miiFace } : {}),
+    },
+  }));
+};
+
+/* ---------- Configurações: vídeo e controles ---------- */
+const videoKeys = { frame_gen: ["off", "120"], fullscreen: ["0", "1"], show_fps: ["0", "1"] };
+Object.entries(videoKeys).forEach(([key, [off, on]]) => {
+  $("video-" + key).onchange = (event) =>
+    action(() => api("settings", { changes: { [key]: event.target.checked ? on : off } })).then(loadSettings);
+});
+// [ini name, Switch button, what it does in MK8]
+const inputs = [
+  ["a", "A", "Acelerar"], ["b", "B", "Frear / dar ré"], ["x", "X", "Olhar para trás"], ["y", "Y", ""],
+  ["l", "L", "Usar item"], ["r", "R", "Pular / derrapar"], ["zl", "ZL", "Usar item"], ["zr", "ZR", "Pular / derrapar"],
+  ["plus", "+", "Pausar"], ["minus", "−", ""], ["lstick", "Analógico esq. (clique)", ""], ["rstick", "Analógico dir. (clique)", ""],
+  ["up", "Direcional ↑", ""], ["down", "Direcional ↓", ""], ["left", "Direcional ←", ""], ["right", "Direcional →", ""],
+  ["ls_left", "Analógico esq. ←", "Virar à esquerda"], ["ls_right", "Analógico esq. →", "Virar à direita"],
+  ["ls_up", "Analógico esq. ↑", "Truque / menus"], ["ls_down", "Analógico esq. ↓", "Menus"],
+  ["rs_up", "Analógico dir. ↑", ""], ["rs_down", "Analógico dir. ↓", ""], ["rs_left", "Analógico dir. ←", ""], ["rs_right", "Analógico dir. →", ""],
+];
+const padNames = {
+  south: "Botão de baixo (Xbox A)", east: "Botão da direita (Xbox B)", west: "Botão da esquerda (Xbox X)",
+  north: "Botão de cima (Xbox Y)", lshoulder: "LB / L1", rshoulder: "RB / R1", ltrigger: "LT / L2", rtrigger: "RT / R2",
+  start: "Start / Menu", back: "Back / View", lstick: "Clique analógico esq.", rstick: "Clique analógico dir.",
+  dpad_up: "Direcional ↑", dpad_down: "Direcional ↓", dpad_left: "Direcional ←", dpad_right: "Direcional →",
+};
+// Browser KeyboardEvent.code -> SDL scancode name (what the runtime reads). F1, F9, F11 and Esc belong to the runtime.
+function sdlKey(code) {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  if (/^Numpad\d$/.test(code)) return "Keypad " + code.slice(6);
+  if (/^Arrow/.test(code)) return code.slice(5);
+  return {
+    Space: "Space", Enter: "Return", Backspace: "Backspace", Tab: "Tab", ShiftLeft: "Left Shift", ShiftRight: "Right Shift",
+    ControlLeft: "Left Ctrl", ControlRight: "Right Ctrl", AltLeft: "Left Alt", AltRight: "Right Alt", CapsLock: "CapsLock",
+    NumpadEnter: "Keypad Enter", NumpadAdd: "Keypad +", NumpadSubtract: "Keypad -", NumpadMultiply: "Keypad *",
+    NumpadDivide: "Keypad /", NumpadDecimal: "Keypad .", Comma: ",", Period: ".", Slash: "/", Semicolon: ";", Quote: "'",
+    BracketLeft: "[", BracketRight: "]", Backslash: "\\", Minus: "-", Equal: "=", Backquote: "`", Home: "Home", End: "End",
+    PageUp: "PageUp", PageDown: "PageDown", Insert: "Insert", Delete: "Delete",
+  }[code];
+}
+let capture = null;
+function stopCapture() {
+  if (!capture) return;
+  capture.classList.remove("capturing");
+  i18n.text(capture, capture.dataset.key);
+  capture = null;
+}
+document.addEventListener("keydown", (event) => {
+  if (!capture) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.code === "Escape") return stopCapture();
+  // (some keyboards and remote desktops send no code: fall back to the key itself)
+  const key = sdlKey(event.code) ?? { Shift: "Left Shift", Control: "Left Ctrl", Alt: "Left Alt", " ": "Space" }[event.key]
+    ?? (/^[a-z0-9]$/i.test(event.key) ? event.key.toUpperCase() : undefined);
+  if (!key) return notice("Essa tecla não pode ser usada.", true);
+  const input = capture.dataset.input;
+  capture.classList.remove("capturing");
+  capture = null;
+  action(() => api("settings", { changes: { ["bind_key_" + input]: key } })).then(loadSettings);
+}, true);
+function renderControls(controls) {
+  $("controls-body").replaceChildren(...inputs.map(([input, button, role]) => {
+    const row = document.createElement("tr");
+    const name = document.createElement("th");
+    i18n.text(name, button);
+    const what = document.createElement("td");
+    i18n.text(what, role);
+    const keyCell = document.createElement("td");
+    const key = document.createElement("button");
+    key.type = "button";
+    key.className = "keycap";
+    key.dataset.input = input;
+    key.textContent = key.dataset.key = controls.keys[input];
+    key.onclick = () => {
+      stopCapture();
+      capture = key;
+      key.classList.add("capturing");
+      i18n.text(key, "Pressione uma tecla…");
+    };
+    keyCell.append(key);
+    const padCell = document.createElement("td");
+    if (input in controls.pad) {
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", i18n.t("Controle") + ": " + button);
+      for (const value of Object.keys(padNames)) select.add(new Option(i18n.t(padNames[value]), value));
+      select.value = controls.pad[input];
+      select.onchange = () => action(() => api("settings", { changes: { ["bind_pad_" + input]: select.value } })).then(loadSettings);
+      padCell.append(select);
+    } else padCell.textContent = "—";
+    row.append(name, what, keyCell, padCell);
+    return row;
+  }));
+}
+async function loadSettings() {
+  const settings = await api("settings");
+  for (const [key, [, on]] of Object.entries(videoKeys)) $("video-" + key).checked = settings.video[key] === on;
+  renderControls(settings.controls);
+}
+$("controls-reset").onclick = () =>
+  action(async () => {
+    if (!(await ask("Voltar todas as teclas e botões para o padrão do MK8?"))) return { message: "Nada foi alterado." };
+    return api("settings/reset-controls", {});
+  }).then(loadSettings);
+
+/* ---------- Saves ---------- */
+["save-browse", "save-browse-file"].forEach((id) => {
+  $(id).onclick = () =>
+    action(async () => {
+      const result = await api("browse", {
+        kind: $(id).dataset.kind,
+        language: i18n.language,
+        title: $(id).getAttribute("aria-label"),
+        current: $("save-path").value.trim(),
+      });
+      if (result.path) $("save-path").value = result.path;
+    });
+});
+$("save-import").onclick = () =>
+  action(async () => {
+    const path = $("save-path").value.trim();
+    if (!path) return { message: "Escolha a pasta do save." };
+    if (!(await ask("Importar este save? O save atual será guardado como backup.")))
+      return { message: "Nada foi alterado." };
+    const result = await api("saves/import", { path });
+    i18n.text($("save-result"), result.backup ? "Backup do save anterior: " + result.backup : "");
+    return result;
+  });
+$("open-saves").onclick = () => action(() => api("open", { what: "saves" }));
+
 /* ---------- Jogar e suporte ---------- */
 $("play-solo").onclick = () => action(() => api("play", { online: false }));
 $("play-online").onclick = () => action(() => api("play", { online: true }));
@@ -440,7 +610,7 @@ $("update-check").onclick = () =>
 $("update-install").onclick = () =>
   action(async () => {
     if (!update?.available) return { message: "Verifique as atualizações primeiro." };
-    if (!confirm(i18n.t(`Instalar ${update.latest.tag} agora? O Launcher será fechado e reaberto.`)))
+    if (!(await ask(`Instalar ${update.latest.tag} agora? O Launcher será fechado e reaberto.`)))
       return { message: "Atualização adiada." };
     return api("update/install", {});
   });
@@ -465,6 +635,8 @@ async function refresh() {
   i18n.text($("version"), "v" + status.version);
   $("open-reports").hidden = !status.windowed;
   $("open-data").hidden = !status.windowed;
+  $("open-saves").hidden = !status.windowed;
+  $("save-browse").hidden = $("save-browse-file").hidden = !status.native_dialogs;
   $("data-dir").textContent = status.data_dir;
   if (status.last_report && status.last_report !== lastReport) {
     if (lastReport !== null) notice("O jogo fechou com erro. Um relatório foi salvo em Suporte.", true);
@@ -532,7 +704,8 @@ async function refresh() {
 }
 (async () => {
   try {
-    $("username").value = await api("username");
+    await loadProfile();
+    await loadSettings();
     savedConfig = await api("config");
     fieldNames.forEach((key) => ($(key).value = savedConfig[key] || ""));
     if (!savedConfig.base_package && !savedConfig.update_package && savedConfig.exefs) {
@@ -550,4 +723,4 @@ async function refresh() {
   setInterval(() => refresh().catch((error) => notice("Launcher indisponível: " + error.message, true)), 2000);
 })();
 
-window.addEventListener("languagechange", () => refresh().catch((error) => notice(error.message, true)));
+window.addEventListener("languagechange", () => Promise.all([refresh(), loadSettings()]).catch((error) => notice(error.message, true)));

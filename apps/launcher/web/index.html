@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="mk8-token" content="__TOKEN__" />
     <meta name="mk8-language" content="__LANGUAGE__" />
     <title>MK8-online</title>
@@ -26,6 +26,8 @@
         <button class="tab active" data-tab="install" aria-selected="true">Instalar</button>
         <button class="tab" data-tab="play" aria-selected="false">Jogar</button>
         <button class="tab" data-tab="session" aria-selected="false">Multijogador</button>
+        <button class="tab" data-tab="profile" aria-selected="false">Perfil</button>
+        <button class="tab" data-tab="settings" aria-selected="false">Configurações</button>
         <button class="tab" data-tab="support" aria-selected="false">Suporte</button>
       </nav>
 
@@ -42,18 +44,12 @@
             <span id="build-state" class="pill">Aguardando</span>
           </div>
 
-          <ol class="stepper" aria-label="Etapas">
-            <li id="stage-tools" data-state="pending" data-step="step-tools"><b>1</b><span>Ferramentas<em id="tools-state">Pendente</em></span></li>
-            <li id="stage-files" data-state="pending" data-step="step-files"><b>2</b><span>Arquivos do jogo<em id="files-state">Pendente</em></span></li>
-            <li id="stage-build" data-state="pending" data-step="step-build"><b>3</b><span>Build do jogo<em id="prepare-state">Pendente</em></span></li>
-          </ol>
-
           <!-- 1. Ferramentas -->
           <article id="step-tools" class="step card" data-state="pending">
             <button type="button" class="step-head" aria-expanded="false">
               <span class="step-num">1</span>
               <span class="step-title"><strong>Ferramentas</strong><small id="tools-summary">Compilador e bibliotecas, baixados uma única vez.</small></span>
-              <span class="step-check" aria-hidden="true">✓</span>
+              <span class="step-state" id="tools-state">Pendente</span>
             </button>
             <div class="step-body">
               <p class="muted">O launcher baixa o compilador e as bibliotecas gráficas (cerca de 1 GB) e confere cada arquivo por SHA-256. Isso só acontece na primeira vez.</p>
@@ -76,7 +72,7 @@
             <button type="button" class="step-head" aria-expanded="false">
               <span class="step-num">2</span>
               <span class="step-title"><strong>Arquivos do jogo</strong><small id="files-summary">Jogo base, atualização 4.0.1 e chaves do seu console.</small></span>
-              <span class="step-check" aria-hidden="true">✓</span>
+              <span class="step-state" id="files-state">Pendente</span>
             </button>
             <div class="step-body">
               <p class="muted">Use os arquivos do seu próprio Switch. O launcher extrai e verifica tudo sozinho.</p>
@@ -106,7 +102,7 @@
                   <label>Pasta do jogo extraído<input id="game-folder" spellcheck="false" placeholder="C:\Jogos\MK8" /></label>
                   <button type="button" class="ghost" data-browse="game-folder" data-kind="folder" aria-label="Escolher a pasta do jogo" hidden>Escolher</button>
                 </div>
-                <p class="hint">A pasta precisa ter <code>exefs</code>, <code>romfs</code> e <code>control.nacp</code> da versão 4.0.1.</p>
+                <p class="hint">A pasta precisa ter as pastas e o arquivo da versão 4.0.1: <code>exefs</code>, <code>romfs</code>, <code>control.nacp</code>.</p>
                 <p id="architecture-state" class="hint" role="status"></p>
               </details>
             </div>
@@ -117,7 +113,7 @@
             <button type="button" class="step-head" aria-expanded="false">
               <span class="step-num">3</span>
               <span class="step-title"><strong>Build do jogo</strong><small id="build-summary">Traduz e compila o jogo para o seu PC.</small></span>
-              <span class="step-check" aria-hidden="true">✓</span>
+              <span class="step-state" id="prepare-state">Pendente</span>
             </button>
             <div class="step-body">
               <div id="build-idle">
@@ -162,8 +158,8 @@
             </div>
             <span id="play-state" class="pill">Bloqueado</span>
           </div>
-          <div class="card hero">
-            <span class="big-eight" aria-hidden="true">8</span>
+          <div class="hero">
+            <span class="game-tile" aria-hidden="true">8</span>
             <div class="hero-body">
               <p id="game-state">Prepare o jogo para habilitar a execução.</p>
               <div class="cta">
@@ -172,6 +168,20 @@
               </div>
               <p class="fine">Build experimental: espere falhas. Se algo der errado, gere um relatório em Suporte.</p>
             </div>
+          </div>
+          <div class="card">
+            <h2>Saves</h2>
+            <p class="muted">Importe um save do MK8 Deluxe copiado do seu Switch: a pasta do JKSV ou do Checkpoint, ou só o arquivo userdata.dat. O save atual fica guardado como backup.</p>
+            <div class="path-field">
+              <label>Pasta ou arquivo do save<input id="save-path" spellcheck="false" placeholder="C:\JKSV\Mario Kart 8 Deluxe\..." /></label>
+              <button type="button" id="save-browse" class="ghost" data-kind="folder" aria-label="Escolher a pasta do save" hidden>Pasta</button>
+              <button type="button" id="save-browse-file" class="ghost" data-kind="save" aria-label="Escolher um arquivo do save" hidden>Arquivo</button>
+            </div>
+            <div class="row">
+              <button type="button" id="save-import" class="primary">Importar save</button>
+              <button type="button" id="open-saves" class="ghost" hidden>Abrir pasta de saves</button>
+            </div>
+            <p id="save-result" class="hint" role="status"></p>
           </div>
           <details class="drawer">
             <summary>Log do jogo</summary>
@@ -188,11 +198,6 @@
             </div>
             <span id="network-state" class="pill">Desconectado</span>
           </div>
-
-          <form id="name-form" class="card inline">
-            <label>Nome de usuário<input id="username" maxlength="24" required /></label>
-            <button class="ghost">Salvar nome</button>
-          </form>
 
           <div class="grid2">
             <div class="card">
@@ -245,6 +250,63 @@
           </details>
         </section>
 
+        <!-- Perfil -->
+        <section id="profile" class="panel" hidden>
+          <div class="panel-head">
+            <div>
+              <h1>Perfil</h1>
+              <p class="muted">Seu nome nas salas e o Mii que o jogo usa.</p>
+            </div>
+          </div>
+          <form id="name-form" class="card inline">
+            <label>Nome de exibição<input id="username" maxlength="24" required /></label>
+            <button class="primary">Salvar nome</button>
+          </form>
+          <form id="mii-form" class="card">
+            <h2>Mii</h2>
+            <p class="muted">O jogo usa o nome e a cor favorita do seu Mii. Os modelos 3D de Mii ainda não aparecem nas corridas.</p>
+            <label>Nome do Mii<input id="mii-name" maxlength="10" required /></label>
+            <fieldset class="choice">
+              <legend>Tipo</legend>
+              <label class="check"><input type="radio" name="mii-gender" value="0" checked />Masculino</label>
+              <label class="check"><input type="radio" name="mii-gender" value="1" />Feminino</label>
+            </fieldset>
+            <fieldset class="choice">
+              <legend>Cor favorita</legend>
+              <div id="mii-colors" class="swatches"></div>
+            </fieldset>
+            <div class="row"><button class="primary">Salvar Mii</button></div>
+          </form>
+        </section>
+
+        <!-- Configurações -->
+        <section id="settings" class="panel" hidden>
+          <div class="panel-head">
+            <div>
+              <h1>Configurações</h1>
+              <p class="muted">Valem na próxima vez que o jogo abrir. Feche o jogo para alterar.</p>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Vídeo</h2>
+            <label class="check"><input type="checkbox" id="video-frame_gen" />Geração de quadros (120 fps)</label>
+            <p class="hint">Cria um quadro intermediário entre cada par de quadros reais. Precisa de uma tela de 100 Hz ou mais; o jogo continua rodando a 60. Experimental no MK8.</p>
+            <label class="check"><input type="checkbox" id="video-fullscreen" />Tela cheia</label>
+            <label class="check"><input type="checkbox" id="video-show_fps" />Mostrar FPS</label>
+          </div>
+          <div class="card">
+            <h2>Controles</h2>
+            <p class="muted">Clique numa tecla e pressione a nova. Esc cancela. No jogo, o menu (F1 ou Esc) também tem uma aba Controls.</p>
+            <div class="table-wrap">
+              <table class="controls">
+                <thead><tr><th>Botão do Switch</th><th>No MK8</th><th>Teclado</th><th>Controle</th></tr></thead>
+                <tbody id="controls-body"></tbody>
+              </table>
+            </div>
+            <div class="row"><button type="button" id="controls-reset" class="ghost">Restaurar padrão do MK8</button></div>
+          </div>
+        </section>
+
         <!-- Suporte -->
         <section id="support" class="panel" hidden>
           <div class="panel-head">
@@ -280,6 +342,13 @@
         </section>
       </main>
     </div>
+
+    <dialog id="ask" class="ask">
+      <form method="dialog">
+        <p id="ask-text"></p>
+        <div class="ask-buttons"><button value="cancel">Cancelar</button><button value="ok" autofocus>OK</button></div>
+      </form>
+    </dialog>
 
     <footer>MK8-online · projeto experimental sem vínculo com a Nintendo · use somente arquivos do seu próprio console</footer>
   </body>

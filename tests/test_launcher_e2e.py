@@ -98,13 +98,13 @@ class LauncherTests(unittest.TestCase):
 
     def test_username_persists_without_avatar(self):
         page = self.page()
-        page.get_by_role("button", name="Multijogador", exact=True).click()
-        page.get_by_label("Nome de usuário", exact=True).fill("João")
+        page.get_by_role("button", name="Perfil", exact=True).click()
+        page.get_by_label("Nome de exibição", exact=True).fill("João")
         page.get_by_role("button", name="Salvar nome", exact=True).click()
         expect(page.locator("#notice")).to_contain_text("Nome salvo")
         page.reload()
-        page.get_by_role("button", name="Multijogador", exact=True).click()
-        expect(page.get_by_label("Nome de usuário", exact=True)).to_have_value("João")
+        page.get_by_role("button", name="Perfil", exact=True).click()
+        expect(page.get_by_label("Nome de exibição", exact=True)).to_have_value("João")
         self.assertEqual(json.loads((Path(self.temporary.name)/'0'/'username.json').read_text(encoding='utf-8')), "João")
         token = page.locator('meta[name="mk8-token"]').get_attribute('content')
         response = page.request.get(self.urls[0]+"/api/mii", headers={"X-MK8-Token":token})
@@ -114,7 +114,7 @@ class LauncherTests(unittest.TestCase):
     def test_01_preparation_missing_files_and_disabled_play(self):
         page=self.page();errors=[];page.on("pageerror",lambda e:errors.append(str(e)))
         expect(page.get_by_role("heading",name="Instalação",exact=True)).to_be_visible()
-        page.locator('#stage-build').click();page.get_by_role("button",name="Iniciar build",exact=True).click()
+        page.evaluate("openStep('step-build', true)");page.get_by_role("button",name="Iniciar build",exact=True).click()
         expect(page.locator("#notice")).to_contain_text("NPDM indisponível")
         page.get_by_role("button",name="Jogar",exact=True).click()
         expect(page.get_by_role("button",name="Jogar solo",exact=True)).to_be_disabled()
@@ -262,7 +262,7 @@ class LauncherTests(unittest.TestCase):
         page=self.page()
         page.get_by_text('Já tenho o jogo extraído numa pasta', exact=True).click()
         page.get_by_label('Pasta do jogo extraído', exact=True).fill(str(folder))
-        page.locator('#stage-build').click();page.get_by_role('button',name='Iniciar build',exact=True).click()
+        page.evaluate("openStep('step-build', true)");page.get_by_role('button',name='Iniciar build',exact=True).click()
         expect(page.locator('#notice')).to_contain_text('AArch32')
         page.reload()
         # Reopened in folder mode, with the reason next to the folder.
@@ -279,11 +279,11 @@ class LauncherTests(unittest.TestCase):
         base.touch()
         patch.touch()
         page.get_by_label("Jogo base", exact=True).fill(str(base))
-        page.locator('#stage-build').click();page.get_by_role("button", name="Iniciar build", exact=True).click()
+        page.evaluate("openStep('step-build', true)");page.get_by_role("button", name="Iniciar build", exact=True).click()
         expect(page.locator("#notice")).to_contain_text("Selecione dois arquivos")
         page.get_by_label("Atualização 4.0.1", exact=True).fill(str(patch))
         page.get_by_label("Arquivo prod.keys", exact=True).fill(str(source / "missing.keys"))
-        page.locator('#stage-build').click();page.get_by_role("button", name="Iniciar build", exact=True).click()
+        page.evaluate("openStep('step-build', true)");page.get_by_role("button", name="Iniciar build", exact=True).click()
         expect(page.locator("#notice")).to_contain_text("prod.keys não encontrado")
         # Two of the three files exist: the step counts them and is not ready.
         expect(page.locator("#files-state")).to_have_text("2 de 3")
@@ -293,7 +293,7 @@ class LauncherTests(unittest.TestCase):
 
     def test_10_guided_install_steps_without_false_success(self):
         page=self.page();errors=[];page.on("pageerror",lambda e:errors.append(str(e)))
-        expect(page.locator('.stepper > li')).to_have_count(3)
+        expect(page.locator('.step')).to_have_count(3)
         expect(page.locator('article.step')).to_have_count(3)
         token=page.locator('meta[name="mk8-token"]').get_attribute('content')
         headers={'X-MK8-Token':token}
@@ -307,7 +307,7 @@ class LauncherTests(unittest.TestCase):
             expect(page.get_by_role('button',name='Baixar ferramentas',exact=True)).to_be_visible()
         # Empty data dir: no files, no build -> nothing is reported as ready.
         expect(page.locator('#files-state')).not_to_have_text(re.compile('Prontos|Extraídos'))
-        expect(page.locator('#stage-files')).to_have_attribute('data-state','pending')
+        expect(page.locator('#step-files')).to_have_attribute('data-state','pending')
         expect(page.locator('#prepare-state')).to_have_text('Pendente')
         expect(page.locator('#play-state')).to_have_text('Bloqueado')
         self.assertEqual(status['files']['ready'],False)
@@ -318,7 +318,7 @@ class LauncherTests(unittest.TestCase):
         folder=page.get_by_label('Pasta do jogo extraído', exact=True)
         expect(folder).to_be_visible() if status['files']['folder'] else expect(folder).to_be_hidden()
         # The build screen: idle, with its live panel hidden until a build runs.
-        page.locator('#stage-build').click()
+        page.evaluate("openStep('step-build', true)")
         expect(page.get_by_role('button',name='Iniciar build',exact=True)).to_be_visible()
         expect(page.locator('#build-live')).to_be_hidden()
         # Headless server has no native window: pickers stay hidden and the API refuses
@@ -350,7 +350,7 @@ class LauncherTests(unittest.TestCase):
         expect(page.locator('#build-pct')).to_have_text('37%')
         expect(page.locator('#build-phase')).to_have_text('Compilando para o seu PC')
         expect(page.locator('#prepare-state')).to_have_text('37%')
-        expect(page.locator('#stage-build')).to_have_attribute('data-state','running')
+        expect(page.locator('#step-build')).to_have_attribute('data-state','running')
         expect(page.locator('#build-elapsed')).to_have_text(re.compile(r'^02:0\d$'))
         first=page.locator('#build-elapsed').inner_text()
         time.sleep(1.3)
