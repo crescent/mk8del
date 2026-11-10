@@ -14,6 +14,13 @@ from playwright.sync_api import sync_playwright, expect
 
 ROOT=Path(__file__).resolve().parents[1]
 
+def open_build(page):
+    # Blur the field like a real click would, let its autosave (and refresh) finish, then open the step: action() drops clicks while busy.
+    page.evaluate("document.activeElement?.blur()")
+    while page.evaluate("busy"):
+        page.wait_for_timeout(50)
+    page.evaluate("openStep('step-build', true)")
+
 
 class LauncherTests(unittest.TestCase):
     @classmethod
@@ -114,7 +121,7 @@ class LauncherTests(unittest.TestCase):
     def test_01_preparation_missing_files_and_disabled_play(self):
         page=self.page();errors=[];page.on("pageerror",lambda e:errors.append(str(e)))
         expect(page.get_by_role("heading",name="Instalação",exact=True)).to_be_visible()
-        page.evaluate("openStep('step-build', true)");page.get_by_role("button",name="Iniciar build",exact=True).click()
+        open_build(page);page.get_by_role("button",name="Iniciar build",exact=True).click()
         expect(page.locator("#notice")).to_contain_text("NPDM indisponível")
         page.get_by_role("button",name="Jogar",exact=True).click()
         expect(page.get_by_role("button",name="Jogar solo",exact=True)).to_be_disabled()
@@ -262,7 +269,7 @@ class LauncherTests(unittest.TestCase):
         page=self.page()
         page.get_by_text('Já tenho o jogo extraído numa pasta', exact=True).click()
         page.get_by_label('Pasta do jogo extraído', exact=True).fill(str(folder))
-        page.evaluate("openStep('step-build', true)");page.get_by_role('button',name='Iniciar build',exact=True).click()
+        open_build(page);page.get_by_role('button',name='Iniciar build',exact=True).click()
         expect(page.locator('#notice')).to_contain_text('AArch32')
         page.reload()
         # Reopened in folder mode, with the reason next to the folder.
@@ -279,11 +286,11 @@ class LauncherTests(unittest.TestCase):
         base.touch()
         patch.touch()
         page.get_by_label("Jogo base", exact=True).fill(str(base))
-        page.evaluate("openStep('step-build', true)");page.get_by_role("button", name="Iniciar build", exact=True).click()
+        open_build(page);page.get_by_role("button", name="Iniciar build", exact=True).click()
         expect(page.locator("#notice")).to_contain_text("Selecione dois arquivos")
         page.get_by_label("Atualização 4.0.1", exact=True).fill(str(patch))
         page.get_by_label("Arquivo prod.keys", exact=True).fill(str(source / "missing.keys"))
-        page.evaluate("openStep('step-build', true)");page.get_by_role("button", name="Iniciar build", exact=True).click()
+        open_build(page);page.get_by_role("button", name="Iniciar build", exact=True).click()
         expect(page.locator("#notice")).to_contain_text("prod.keys não encontrado")
         # Two of the three files exist: the step counts them and is not ready.
         expect(page.locator("#files-state")).to_have_text("2 de 3")
@@ -318,7 +325,7 @@ class LauncherTests(unittest.TestCase):
         folder=page.get_by_label('Pasta do jogo extraído', exact=True)
         expect(folder).to_be_visible() if status['files']['folder'] else expect(folder).to_be_hidden()
         # The build screen: idle, with its live panel hidden until a build runs.
-        page.evaluate("openStep('step-build', true)")
+        open_build(page)
         expect(page.get_by_role('button',name='Iniciar build',exact=True)).to_be_visible()
         expect(page.locator('#build-live')).to_be_hidden()
         # Headless server has no native window: pickers stay hidden and the API refuses

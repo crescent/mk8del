@@ -12,6 +12,13 @@ from playwright.sync_api import expect, sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "apps/launcher/web"
 
+def open_build(page):
+    # Blur the field like a real click would, let its autosave (and refresh) finish, then open the step: action() drops clicks while busy.
+    page.evaluate("document.activeElement?.blur()")
+    while page.evaluate("busy"):
+        page.wait_for_timeout(50)
+    page.evaluate("openStep('step-build', true)")
+
 
 class LanguageTests(unittest.TestCase):
     @classmethod
@@ -68,7 +75,7 @@ class LanguageTests(unittest.TestCase):
                 page.get_by_label("Idioma", exact=True).select_option("en")
                 expect(page.locator("#notice")).to_have_text("Name saved on this PC.")
                 page.get_by_role("button", name="Install", exact=True).click()
-                page.locator("#stage-build").click()
+                open_build(page)
                 page.get_by_role("button", name="Start build", exact=True).click()
                 expect(page.locator("#notice")).to_contain_text("NPDM unavailable:")
                 token = page.locator('meta[name="mk8-token"]').get_attribute("content")
