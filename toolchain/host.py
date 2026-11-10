@@ -210,6 +210,8 @@ def prepare_host_sources(source, output):
     prepare_bc_render(runtime)
     from split_screen import prepare as prepare_split_screen
     prepare_split_screen(runtime)
+    from controller_applet import prepare as prepare_controller_applet
+    prepare_controller_applet(runtime)
     from online_notice import prepare as prepare_online_notice
     prepare_online_notice(runtime)
     from movie_output import prepare as prepare_movie_output
