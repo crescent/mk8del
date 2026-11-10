@@ -13,7 +13,7 @@
 ![Plataforma](https://img.shields.io/badge/Windows-x64-0078D6)
 ![Gráficos](https://img.shields.io/badge/Gráficos-Vulkan-AC162C)
 ![Linguagens](https://img.shields.io/badge/Rust-C%2FC%2B%2B-555555)
-![Release base](https://img.shields.io/badge/Release_base-0.1.8-ef795d)
+![Release base](https://img.shields.io/badge/Release_base-0.1.9-ef795d)
 ![Estado](https://img.shields.io/badge/Estado-Experimental-e6a23c)
 [![Licença](https://img.shields.io/badge/Licença-GPL--3.0--or--later-blue)](LICENSE)
 
@@ -28,7 +28,7 @@ com launcher nativo, runtime Vulkan e salas multijogador em desenvolvimento.
 > Use seus próprios arquivos do jogo e as chaves do seu console. O repositório e as releases não incluem ROMs, recursos do jogo, chaves, saves ou código recompilado do jogo. A compilação acontece localmente, a partir dos seus arquivos.
 
 > [!NOTE]
-> **Disponível para testes, ainda experimental.** Corridas foram concluídas em testes locais, mas persistem defeitos visuais, engasgos no primeiro uso de shaders e crescimento de VRAM. Multiplayer entre PCs diferentes ainda não foi qualificado. O instalador de testes 0.1.8 inclui recuperação da preparação, coordenação de processos e o carregador Vulkan.
+> **Disponível para testes, ainda experimental.** Corridas foram concluídas em testes locais, mas persistem defeitos visuais, engasgos no primeiro uso de shaders e crescimento de VRAM. Multiplayer entre PCs diferentes ainda não foi qualificado. O instalador de testes 0.1.9 traz a aba Perfil, teclas/botões no launcher, geração de quadros, importação de save e a correção dos saves que não persistiam.
 
 ## No grid de largada
 
@@ -60,6 +60,8 @@ RatOne desenvolve e mantém a adaptação MK8, o launcher e a integração. A ba
 - Internet para baixar as ferramentas inicialmente (cerca de 0,4 GiB instalados, antes dos caches) e atualizar. As ferramentas são compartilhadas entre versões do launcher.
 
 Ferramentas baixa CPython fixado, verifica SHA-256 e cria o ambiente local sem alterar o Python do sistema ou o PATH. Ambientes incompatíveis ou incompletos são preservados em `local/python-backup-*` e recriados automaticamente. Disponível na 0.1.7; usuários da 0.1.6 podem atualizar pelo Suporte antes de repetir Ferramentas.
+
+Incluído na versão de testes 0.1.9: aba **Perfil** (nome de exibição e nome/cor do Mii; o modelo Mii continua desligado nas corridas); aba **Configurações** com teclas/botões do controle, geração de quadros (120 fps em telas de 100 Hz ou mais, o jogo continua a 60), tela cheia e contador de FPS; teclado padrão do MK8 (setas: direção, X: acelerar, Z: frear, Espaço: item, Shift esquerdo: derrapar); e **Saves → Importar** para uma pasta do JKSV/Checkpoint ou um único `userdata.dat`, guardando o save atual como backup. O runtime agora monta separadamente os saves de dispositivo e de conta, e o progresso persiste entre sessões. O launcher ganhou visual no estilo do Switch e confirmações próprias. As mudanças de runtime exigem **Build** de novo após atualizar.
 
 Incluído na versão de testes 0.1.8: a verificação de prontidão usa o Python privado; a instalação ignora configurações externas do pip e exige wheels binários com hashes verificados. Arquivos de download danificados são baixados novamente, e metadados inválidos do cache de compilação acionam recuperação em vez de interromper a preparação. Essas correções exigem atualizar da 0.1.7 para a 0.1.8. Veja o [estado técnico](docs/STATUS.md).
 

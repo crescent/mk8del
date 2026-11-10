@@ -13,7 +13,7 @@
 ![Platform](https://img.shields.io/badge/Windows-x64-0078D6)
 ![Graphics](https://img.shields.io/badge/Graphics-Vulkan-AC162C)
 ![Stack](https://img.shields.io/badge/Rust-C%2FC%2B%2B-555555)
-![Release base](https://img.shields.io/badge/Release_base-0.1.8-ef795d)
+![Release base](https://img.shields.io/badge/Release_base-0.1.9-ef795d)
 ![Status](https://img.shields.io/badge/Status-Experimental-e6a23c)
 [![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue)](LICENSE)
 
@@ -28,7 +28,7 @@ with a native launcher, a Vulkan runtime and multiplayer rooms under development
 > Bring your own game files and console keys. This repository and its releases do not include ROMs, game assets, keys, saves or recompiled game code. The game is compiled locally from your own files.
 
 > [!NOTE]
-> **Open for testing, still experimental.** Races have completed in local tests, but visual defects, first-use shader stutters and growing VRAM usage remain. Multiplayer between separate PCs is not yet qualified. The 0.1.8 test installer adds preparation recovery, process coordination and the bundled Vulkan loader.
+> **Open for testing, still experimental.** Races have completed in local tests, but visual defects, first-use shader stutters and growing VRAM usage remain. Multiplayer between separate PCs is not yet qualified. The 0.1.9 test installer adds a Profile tab, launcher key/controller bindings, frame generation, save import and a fix for saves that did not persist.
 
 ## On the starting grid
 
@@ -60,6 +60,8 @@ RatOne develops and maintains the MK8 adaptation, launcher and integration. The 
 - Internet for the initial tool download (about 0.4 GiB installed, before build caches) and updates. Tools are shared across launcher versions.
 
 Tools downloads a pinned CPython package, verifies SHA-256 and creates its local environment without changing system Python or PATH. Incompatible or incomplete environments are preserved in `local/python-backup-*` and recreated automatically. Available in 0.1.7; users of 0.1.6 can update through Support before retrying Tools.
+
+Included in the 0.1.9 test release: a **Profile** tab (display name and Mii name/colour; the Mii model stays off in races); a **Settings** tab for keyboard/controller bindings, frame generation (120 fps on 100 Hz+ displays, the game still runs at 60), fullscreen and the FPS counter; an MK8 default keyboard layout (arrows steer, X accelerates, Z brakes, Space uses an item, Left Shift drifts); and **Saves → Import** for a JKSV/Checkpoint folder or a single `userdata.dat`, keeping the current save as a backup. The runtime now mounts the device and account saves separately, so progress persists between sessions. The launcher has a Switch-style look and in-app confirmations. Runtime changes need **Build** again after updating.
 
 Included in the 0.1.8 test release: readiness checks now use the private Python environment; package installation ignores external pip settings and requires verified binary wheels. Damaged download archives are fetched again, and invalid compilation-cache metadata triggers recovery instead of aborting preparation. These fixes require updating from 0.1.7 to 0.1.8. See [technical status](docs/STATUS.md).
 

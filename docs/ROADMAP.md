@@ -6,6 +6,8 @@ Legenda: **[bloqueia]** impede o uso normal · **[visível]** atrapalha, mas dá
 
 Preparação 0.1.7: Python 3.12 x64 privado baixado automaticamente, com reparo de ambientes incompatíveis/incompletos e backup. Resta acompanhar instalações em outras máquinas; detalhes em STATUS.md.
 
+Versão 0.1.9 (testes, fork crescent/mk8del): aba Perfil, teclas/botões e vídeo no launcher, importação de save e correção do save que não persistia. Gameplay continua não qualificado.
+
 Preparação 0.1.8 (testes): recuperação de caches, isolamento Python/pip, coordenação de processos e tratamento de arquivos bloqueados/unidades indisponíveis. Carregador Vulkan incluído. Resta validar em máquinas dos relatos e com antivírus/dispositivos reais; não altera a qualificação de gameplay.
 
 ## 1. Multijogador
