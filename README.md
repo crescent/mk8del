@@ -99,7 +99,7 @@ Reuse the same data folder on subsequent launches. Older per-version data folder
 
 Each PC needs its own prepared copy of the same game version. In **Multiplayer**, set your display name, create or discover a room and generate **New invitation** for each friend. Guests paste their individual invitations into the launcher. Invitations contain the host address: share them privately.
 
-LAN discovery and traffic use UDP **47820** and depend on the network/firewall. The launcher selects the local address automatically; **Alternative address** supports a configured VPN or forwarded address. **Esc → Salas com amigos** opens the launcher's room tab from compatible runtime builds.
+LAN discovery and traffic use UDP **47820** and depend on the network/firewall. The launcher selects the local address automatically; **Alternative address** supports a configured VPN or forwarded address. **Esc → Friend rooms** opens the launcher's room tab from compatible runtime builds.
 
 After joining in the launcher:
 

@@ -99,7 +99,7 @@ Use a mesma pasta nas próximas aberturas. Pastas antigas de dados por versão n
 
 Cada PC precisa preparar sua própria cópia da mesma versão do jogo. Em **Multijogador**, salve seu nome, crie ou busque uma sala e gere **Novo convite** para cada amigo. Os convidados colam seus convites individuais no launcher. O convite contém o endereço do anfitrião: compartilhe em privado.
 
-A descoberta e o tráfego LAN usam UDP **47820** e dependem da rede/firewall. O launcher escolhe o endereço local automaticamente; **Endereço alternativo** aceita uma VPN ou um endereço com redirecionamento configurado. **Esc → Salas com amigos** abre a aba de salas em builds compatíveis do runtime.
+A descoberta e o tráfego LAN usam UDP **47820** e dependem da rede/firewall. O launcher escolhe o endereço local automaticamente; **Endereço alternativo** aceita uma VPN ou um endereço com redirecionamento configurado. **Esc → Friend rooms** abre a aba de salas em builds compatíveis do runtime.
 
 Após conectar no launcher:
 

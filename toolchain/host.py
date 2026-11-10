@@ -246,8 +246,39 @@ def prepare_host_sources(source, output):
     boundary = '        tabs_body(scale, true, NULL);'
     if text.count(boundary) != 1:
         raise ValueError('Runtime room menu boundary changed')
-    text = text.replace(boundary, '        if (mk8_room_menu_available() && ImGui::Button("Salas com amigos")) mk8_open_room_menu();\n' + boundary)
+    text = text.replace(boundary, '        if (mk8_room_menu_available() && ImGui::Button("Friend rooms")) mk8_open_room_menu();\n' + boundary)
     menu.write_text('extern "C" bool mk8_room_menu_available(void);\nextern "C" void mk8_open_room_menu(void);\n' + text, encoding='utf-8')
+    # MK8 keyboard defaults instead of SMM2's: arrows steer, X/Z accelerate/brake, Space item, Left Shift drift.
+    # Must match MK8_KEYS in apps/launcher/src/game_settings.rs (the launcher's Reset).
+    bindings = runtime/'hle/bindings.c'
+    text = bindings.read_text(encoding='utf-8')
+    smm2_keys = ('    SDL_SCANCODE_K, SDL_SCANCODE_J, SDL_SCANCODE_L, SDL_SCANCODE_I, SDL_SCANCODE_F, SDL_SCANCODE_KP_0, \\\n'
+                 '    SDL_SCANCODE_Q, SDL_SCANCODE_E, SDL_SCANCODE_1, SDL_SCANCODE_3, SDL_SCANCODE_RETURN, SDL_SCANCODE_BACKSPACE, \\\n'
+                 '    SDL_SCANCODE_LEFT, SDL_SCANCODE_UP, SDL_SCANCODE_RIGHT, SDL_SCANCODE_DOWN, \\\n'
+                 '    SDL_SCANCODE_W, SDL_SCANCODE_S, SDL_SCANCODE_A, SDL_SCANCODE_D, SDL_SCANCODE_KP_8, SDL_SCANCODE_KP_5, \\\n')
+    mk8_keys = ('    SDL_SCANCODE_X, SDL_SCANCODE_Z, SDL_SCANCODE_C, SDL_SCANCODE_V, SDL_SCANCODE_F, SDL_SCANCODE_KP_0, \\\n'
+                '    SDL_SCANCODE_SPACE, SDL_SCANCODE_LSHIFT, SDL_SCANCODE_Q, SDL_SCANCODE_E, SDL_SCANCODE_RETURN, SDL_SCANCODE_BACKSPACE, \\\n'
+                '    SDL_SCANCODE_J, SDL_SCANCODE_I, SDL_SCANCODE_L, SDL_SCANCODE_K, \\\n'
+                '    SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT, SDL_SCANCODE_KP_8, SDL_SCANCODE_KP_5, \\\n')
+    if text.count(smm2_keys) != 1:
+        raise ValueError('Runtime default key bindings changed')
+    bindings.write_text(text.replace(smm2_keys, mk8_keys), encoding='utf-8')
+    # OpenSaveDataFileSystem(u8 space, SaveDataAttribute at 0x8): the type is attribute+0x20; upstream reads +0x18
+    # (system_save_data_id, 0 for games), so every save MK8 mounts shared save_0 and the game's own save was
+    # never found again (each boot made a new one). The account save keeps save_0, where existing saves live.
+    fs = runtime/'services/fs.c'
+    text = fs.read_text(encoding='utf-8')
+    mount = ('        uint8_t type = IN(uint8_t, 0x8 + 0x18);  // attribute.type\n'
+             '        char sub[64];\n'
+             '        snprintf(sub, sizeof sub, "save_%u", type);\n')
+    if text.count(mount) != 1:
+        raise ValueError('Save data mount boundary changed')
+    fs.write_text(text.replace(mount, '''        uint8_t type = IN(uint8_t, 0x8 + 0x20);  // attribute.type (MK8: toolchain/host.py)
+        char sub[64];
+        if (type == 1) snprintf(sub, sizeof sub, "save_0");  // account save: where existing saves are
+        else snprintf(sub, sizeof sub, "save_type%u", type);
+        LOG("[fs] OpenSaveDataFileSystem cmd %u space %u type %u\\n", req->cmd, IN(uint8_t, 0), type);
+'''), encoding='utf-8')
     kernel = runtime/'kernel.c'
     text = kernel.read_text(encoding='utf-8')
     stack = '    pthread_attr_setstacksize(&attr, 256ull << 20);  // guest recursion runs on the host stack'
