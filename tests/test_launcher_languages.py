@@ -13,11 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "apps/launcher/web"
 
 def open_build(page):
-    # Blur the field like a real click would, let its autosave (and refresh) finish, then open the step: action() drops clicks while busy.
-    page.evaluate("document.activeElement?.blur()")
-    while page.evaluate("busy"):
-        page.wait_for_timeout(50)
-    page.evaluate("openStep('step-build', true)")
+    # Open the build step the way a person does, so a refresh does not fold it again.
+    head = page.locator("#step-build .step-head")
+    if head.get_attribute("aria-expanded") != "true":
+        head.click()
 
 
 class LanguageTests(unittest.TestCase):

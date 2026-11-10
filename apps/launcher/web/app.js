@@ -112,14 +112,18 @@ function minutes(seconds) {
 
 $("setup-start").onclick = () => action(() => api("setup", {}));
 $("setup-cancel").onclick = () => action(() => api("setup/cancel", {}));
+// Autosave stays out of action(): a field's change event fires on the same click that hits Build,
+// and action() drops calls while busy, which swallowed that click. Build waits for it instead.
+let saving = Promise.resolve();
 fieldNames.forEach((key) => {
-  $(key).addEventListener("change", () =>
-    action(async () => {
-  await i18n.ready;
+  $(key).addEventListener("change", () => {
+    saving = (async () => {
+      await i18n.ready;
       await api("config", config());
-      return { message: "Arquivos salvos." };
-    }),
-  );
+      notice("Arquivos salvos.");
+      await refresh();
+    })().catch((error) => notice(error.message, true));
+  });
 });
 document.querySelectorAll("[data-browse]").forEach((button) => {
   button.onclick = () =>
@@ -149,6 +153,7 @@ function usingFolder() {
 }
 $("build").onclick = () =>
   action(async () => {
+    await saving;
     if (usingFolder()) await selectGameFolder();
     else if (!fieldNames.some((key) => $(key).value.trim()) && !$("game-folder").value.trim())
       await api("config", { ...config(), base_package: "", update_package: "" });

@@ -15,11 +15,10 @@ from playwright.sync_api import sync_playwright, expect
 ROOT=Path(__file__).resolve().parents[1]
 
 def open_build(page):
-    # Blur the field like a real click would, let its autosave (and refresh) finish, then open the step: action() drops clicks while busy.
-    page.evaluate("document.activeElement?.blur()")
-    while page.evaluate("busy"):
-        page.wait_for_timeout(50)
-    page.evaluate("openStep('step-build', true)")
+    # Open the build step the way a person does, so a refresh does not fold it again.
+    head = page.locator("#step-build .step-head")
+    if head.get_attribute("aria-expanded") != "true":
+        head.click()
 
 
 class LauncherTests(unittest.TestCase):
@@ -290,7 +289,8 @@ class LauncherTests(unittest.TestCase):
         expect(page.locator("#notice")).to_contain_text("Selecione dois arquivos")
         page.get_by_label("Atualização 4.0.1", exact=True).fill(str(patch))
         page.get_by_label("Arquivo prod.keys", exact=True).fill(str(source / "missing.keys"))
-        open_build(page);page.get_by_role("button", name="Iniciar build", exact=True).click()
+        # Straight from the field to Build: the field's autosave must not swallow this click.
+        page.get_by_role("button", name="Iniciar build", exact=True).click()
         expect(page.locator("#notice")).to_contain_text("prod.keys não encontrado")
         # Two of the three files exist: the step counts them and is not ready.
         expect(page.locator("#files-state")).to_have_text("2 de 3")
