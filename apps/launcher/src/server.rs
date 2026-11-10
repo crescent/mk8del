@@ -98,7 +98,13 @@ impl App {
         let username = load(&local.join("username.json"))
             .ok()
             .filter(|name: &String| valid_username(name))
-            .unwrap_or_else(|| "Jogador".into());
+            .unwrap_or_else(|| {
+                if crate::language::read(&local) == "pt-BR" {
+                    "Jogador".into()
+                } else {
+                    "Player".into()
+                }
+            });
         Self {
             root,
             local,
@@ -137,6 +143,15 @@ impl App {
         }
         self.build
             .start(&self.root, &self.local.join("config.json"), &self.local)
+    }
+
+    /// The game's settings and saves change only while it is closed (the runtime rewrites them from memory).
+    fn game_closed(&mut self) -> Result<Vec<fs::File>> {
+        self.status();
+        if self.game.is_some() {
+            return Err("Feche o jogo antes de alterar configurações ou saves.".into());
+        }
+        mk8_build_manager::acquire_operation(&self.root, &self.local)
     }
 
     fn log_tail(&self, name: &str) -> Result<String> {
@@ -270,6 +285,43 @@ impl App {
                 save(&self.local.join("username.json"), &name)?;
                 self.username = name.into();
                 Ok(json!({"message":"Nome salvo neste computador."}))
+            }
+            ("GET", "/api/profile") => {
+                let mii = mk8_installer::mii::read(&self.local)?;
+                Ok(json!({"name":self.username,"mii":mii.map(|p| p.appearance)}))
+            }
+            ("POST", "/api/profile") => {
+                let value: Value = serde_json::from_str(body).map_err(|e| e.to_string())?;
+                let appearance: mk8_installer::mii::Appearance =
+                    serde_json::from_value(value["mii"].clone()).map_err(|e| e.to_string())?;
+                let _guards = self.game_closed()?;
+                mk8_installer::mii::store(&self.local, appearance)?;
+                Ok(json!({"message":"Perfil Mii salvo. Vale na próxima vez que o jogo abrir."}))
+            }
+            ("GET", "/api/settings") => Ok(json!({
+                "controls": crate::game_settings::controls(&self.local),
+                "video": crate::game_settings::video(&self.local),
+            })),
+            ("POST", "/api/settings") => {
+                let value: Value = serde_json::from_str(body).map_err(|e| e.to_string())?;
+                let changes = value["changes"].as_object().ok_or("Nada para salvar.")?;
+                let _guards = self.game_closed()?;
+                crate::game_settings::write(&self.local, changes)?;
+                Ok(json!({"message":"Configuração salva."}))
+            }
+            ("POST", "/api/settings/reset-controls") => {
+                let _guards = self.game_closed()?;
+                crate::game_settings::reset_controls(&self.local)?;
+                Ok(json!({"message":"Controles restaurados para o padrão do MK8."}))
+            }
+            ("POST", "/api/saves/import") => {
+                let value: Value = serde_json::from_str(body).map_err(|e| e.to_string())?;
+                let path = value["path"]
+                    .as_str()
+                    .filter(|p| !p.is_empty())
+                    .ok_or("Escolha a pasta do save.")?;
+                let _guards = self.game_closed()?;
+                crate::game_settings::import_save(&self.local, Path::new(path))
             }
             ("POST", "/api/game-folder") => {
                 let value: Value = serde_json::from_str(body).map_err(|e| e.to_string())?;
@@ -550,6 +602,7 @@ impl App {
                     Some("reports") => report::folder(&self.local),
                     Some("logs") => self.local.join("logs"),
                     Some("data") => self.local.clone(),
+                    Some("saves") => crate::game_settings::save_dir(&self.local),
                     _ => return Err("Pasta desconhecida.".into()),
                 };
                 if self.window.is_none() {
@@ -621,6 +674,14 @@ fn browse(req: Request, body: &str, parent: &DialogParent) {
                 "Chaves do console"
             },
             &["keys"][..],
+        )),
+        Some("save") => Some((
+            if english {
+                "MK8 save files"
+            } else {
+                "Arquivos de save do MK8"
+            },
+            &["dat"][..],
         )),
         _ => None,
     };

@@ -6,6 +6,9 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
+pub mod avatar;
+pub mod mii;
+
 #[derive(Serialize)]
 pub struct Check {
     pub name: String,
@@ -231,6 +234,9 @@ fn spawn_game(
     ] {
         cmd.env_remove(env);
     }
+    // Name, colour and face only (CharInfo and the in-game name editor); MK8_EXPERIMENTAL_NO_MII keeps the
+    // Mii renderer off, so no graphics consumer is re-enabled.
+    mii::configure(&mut cmd, local)?;
     if let Some((addr, slot)) = network {
         cmd.env("LARECOMP_LAN_RELAY", addr)
             .env("LARECOMP_LAN_ROOM", "MK8ONLINE")

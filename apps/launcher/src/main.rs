@@ -3,6 +3,7 @@
 //! `--headless` (or the older `--no-browser`) keeps only the server, for tests.
 mod console;
 mod game_session;
+mod game_settings;
 mod installer;
 mod language;
 mod relay;
@@ -84,7 +85,9 @@ fn main() {
     }
     if let Some(mode) = installer::mode(&args) {
         if let Err(error) = installer::run(mode, &args) {
-            fatal(&format!("O instalador não pôde continuar: {error}"));
+            fatal(&format!(
+                "The installer could not continue / O instalador não pôde continuar: {error}"
+            ));
             std::process::exit(1);
         }
         return;
@@ -99,7 +102,9 @@ fn main() {
         if headless {
             eprintln!("MK8-online: {error}");
         } else {
-            fatal(&format!("O Launcher não pôde iniciar: {error}"));
+            fatal(&format!(
+                "The Launcher could not start / O Launcher não pôde iniciar: {error}"
+            ));
         }
         std::process::exit(1);
     }
