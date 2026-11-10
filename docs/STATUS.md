@@ -1,4 +1,12 @@
-# Estado técnico — 09/11/2026
+# Estado técnico — 10/11/2026
+
+## Release 0.1.10 — applet de controles: + na seleção de personagens (10/11/2026)
+
+Versões Cargo/Tauri/lock em 0.1.10. Publicada no fork `crescent/mk8del`.
+
+**Relato:** + no controle Xbox na seleção de personagens "congelava" a tela (música e memória seguiam; Esc abria o menu do runtime). O log mostra `[hid] controller support (players 1..1)`: o + abre o applet de controles. O HLE do upstream responde `ShowControllerSupport` na hora, sem nenhuma mensagem AM; no Switch o applet tira o foco da aplicação e o devolve ao fechar, com `FocusStateChanged` (15). Sem isso o MK8 fica no estado "applet aberto": o fundo anima, mas o cursor ignora todos os botões.
+
+**Correção:** `toolchain/controller_applet.py` faz o HLE enfileirar dois `FocusStateChanged` (fora de foco, depois em foco); cada mensagem leva o estado nos bits altos e `GetCurrentFocusState` passa a responder o da última mensagem recebida (antes, sempre 1). `tests/test_controller_applet.py` compila o `am.c` preparado e exercita fila, evento, estados, fila cheia e reinício. Reprodução automática (save/cache copiados, build instalada `1915b255…` × mesmo runtime + correção, compilado à parte): + no quadro 1500 e duas vezes direita depois; sem a correção o cursor fica em Baby Peach, com ela vai a Baby Rosalina. Exige build `--runtime-only`. **Não verificado:** controle físico, o fechamento do applet com mais jogadores e se isso também resolve a tela dividida descrita abaixo (mesmo applet antes da seleção de personagens).
 
 ## Release 0.1.9 — perfil, controles, vídeo e saves (09/11/2026)
 
