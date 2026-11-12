@@ -76,7 +76,7 @@ Já conferido no código, fora do plano: o despacho de funções (`runtime/dispa
 
 4. Feito: a identidade do cache de objetos cobre só os headers que o código compilado alcança por `#include` (6 dos 24: `cpu.h`, `simd.h`, `simd_fp.h`, `game.h`, `gamelib.h`, `module_config.h`). Teste em `tests/test_native_cache.py`.
 5. Feito: antes de gravar `candidate.json` (build completa e `--runtime-only`), o jogo abre numa janela oculta e numa pasta de dados temporária até capturar a tela-título (quadro 360, ~15 s). Falha, travamento ou saída antecipada não publicam o candidato e deixam `boot-check.log` na pasta de dados; `MK8_SKIP_BOOT_CHECK=1` pula. Testes em `tests/test_pipeline.py`.
-6. **Patches de instrução conferidos.** Lista `games/mk8d/patches/4.0.1.json` com módulo, offset, palavra original, palavra nova e motivo, aplicada à cópia do NSO antes do `gen.py`. Se a palavra original não bater, a build falha. Sem patches ativos até o item 7. Teste com um módulo sintético.
+6. Feito: `games/mk8d/profiles/<perfil>-patches.json` (opcional; nenhum ativo) lista `module`, `offset`, `original`, `patched` e `reason`, em hexadecimal. O gerador confere a palavra original e traduz uma cópia descomprimida do módulo; palavra diferente interrompe a build. Teste com módulo sintético comprimido em `tests/test_pipeline.py`.
 
 ### Fase C — desempenho
 

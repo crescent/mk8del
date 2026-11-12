@@ -47,8 +47,57 @@ def validate_nso(path, window):
     return raw[0x40:0x60].hex()
 
 
-def generate(source, exefs, output, profile):
+def load_patches(path, modules):
+    """Instruction patches by module: [{"module", "offset", "original", "patched", "reason"}], hex strings."""
+    patches = {}
+    for entry in json.loads(Path(path).read_text(encoding="utf-8")):
+        if set(entry) != {"module", "offset", "original", "patched", "reason"} or entry["module"] not in modules or not entry["reason"]:
+            raise ValueError(f"Invalid instruction patch: {entry}")
+        offset, original, patched = (int(entry[key], 16) for key in ("offset", "original", "patched"))
+        if offset % 4 or not (0 <= original < 2**32 and 0 <= patched < 2**32):
+            raise ValueError(f"Invalid instruction patch: {entry}")
+        patches.setdefault(entry["module"], []).append((offset, original, patched))
+    return patches
+
+
+def patched_nso(path, patches, target):
+    """An uncompressed copy of the NSO with each word replaced; the original word must be the one recorded.
+
+    Only the translation reads the copy: the runtime still maps the original module, so code the game reads as data
+    keeps the old word.
+    """
+    import lz4.block
+    raw = Path(path).read_bytes()
+    flags = struct.unpack_from("<I", raw, 12)[0]
+    segments = []
+    for i in range(3):
+        file_off, mem_off, size = struct.unpack_from("<III", raw, 0x10 + i*16)
+        stored = struct.unpack_from("<I", raw, 0x60+i*4)[0] if flags & (1 << i) else size
+        data = raw[file_off:file_off+stored]
+        segments.append([mem_off, bytearray(lz4.block.decompress(data, uncompressed_size=size) if flags & (1 << i) else data)])
+    for offset, original, patched in patches:
+        segment = next((s for s in segments if s[0] <= offset and offset + 4 <= s[0] + len(s[1])), None)
+        if segment is None:
+            raise ValueError(f"{path.name}: patch at {offset:#x} is outside the module")
+        found = struct.unpack_from("<I", segment[1], offset - segment[0])[0]
+        if found != original:
+            raise ValueError(f"{path.name}: patch at {offset:#x} expects {original:#010x}, the module has {found:#010x}")
+        struct.pack_into("<I", segment[1], offset - segment[0], patched)
+    header = bytearray(raw[:0x100])
+    struct.pack_into("<I", header, 12, flags & ~0b111)  # (no compression; hashes rewritten below)
+    out = bytearray(raw[0x100:min(struct.unpack_from("<I", raw, 0x10 + i*16)[0] for i in range(3))])
+    for i, (mem_off, data) in enumerate(segments):
+        struct.pack_into("<III", header, 0x10 + i*16, 0x100 + len(out), mem_off, len(data))
+        struct.pack_into("<I", header, 0x60 + i*4, len(data))
+        header[0xa0+32*i:0xc0+32*i] = hashlib.sha256(data).digest()
+        out += data
+    target.write_bytes(header + out)
+    return target
+
+
+def generate(source, exefs, output, profile, patches=None):
     output.mkdir(parents=True, exist_ok=True)
+    patches = patches or {}
     tools = source / "tools"
     generator_id = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(tools.glob("*.py")))).hexdigest()
 
@@ -57,6 +106,8 @@ def generate(source, exefs, output, profile):
         path = exefs / name
         build_id = validate_nso(path, profile["module_window_bytes"])
         identity = {"sha256": sha(path), "build_id": build_id, "base": base, "generator": generator_id, "simd": profile["simd"]}
+        if name in patches:
+            identity["patches"] = [[f"{o:#x}", f"{a:#010x}", f"{b:#010x}"] for o, a, b in patches[name]]
         target = output / name
         receipt = output / (name + "-receipt.json")
         if receipt.is_file():
@@ -69,7 +120,15 @@ def generate(source, exefs, output, profile):
             except (FileNotFoundError, ValueError):
                 pass  # Interrupted metadata cannot prove that generated code is reusable.
         stage = output / f"{name}-pending-{time.time_ns()}"
-        subprocess.run([sys.executable, tools / "gen.py", name, path, base, stage, "--simd", profile["simd"]], cwd=tools, check=True)
+        translated = path
+        if name in patches:
+            translated = patched_nso(path, patches[name], output / f"{name}-patched-{time.time_ns()}.nso")
+            print(f"{name}: {len(patches[name])} instrução(ões) substituída(s) antes da tradução", flush=True)
+        try:
+            subprocess.run([sys.executable, tools / "gen.py", name, translated, base, stage, "--simd", profile["simd"]], cwd=tools, check=True)
+        finally:
+            if translated != path:
+                translated.unlink()
         if sha(path) != identity["sha256"]:
             raise ValueError(f"{name}: input changed while generating")
         if not list(stage.glob("*.c")):
@@ -99,5 +158,8 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser()
     for name in ("source","exefs","output","profile"):
         parser.add_argument("--"+name,required=True,type=Path)
+    parser.add_argument("--patches",type=Path,help="checked instruction patches (load_patches)")
     args=parser.parse_args()
-    generate(args.source.resolve(),args.exefs.resolve(),args.output.resolve(),json.loads(args.profile.read_text()))
+    profile=json.loads(args.profile.read_text())
+    patches=load_patches(args.patches,profile["modules"]) if args.patches else None
+    generate(args.source.resolve(),args.exefs.resolve(),args.output.resolve(),profile,patches)

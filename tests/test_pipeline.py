@@ -175,6 +175,41 @@ class PipelineTests(unittest.TestCase):
                     self.assertEqual(text, chunk.read_text())
                     self.assertEqual(json.loads(receipt.read_text())['files'][chunk.name], pipeline.sha(chunk))
 
+    def test_instruction_patch_is_checked_and_translated(self):
+        import lz4.block
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);exefs=root/"exefs";exefs.mkdir();synthetic_nso(exefs/"main")
+            # The real modules are LZ4-compressed: compress the three segments of the fixture.
+            raw=bytearray((exefs/"main").read_bytes());body=bytearray()
+            for i in range(3):
+                file_off,_,size=struct.unpack_from("<III",raw,0x10+i*16)
+                packed=lz4.block.compress(bytes(raw[file_off:file_off+size]),store_size=False)
+                struct.pack_into("<I",raw,0x10+i*16,256+len(body));struct.pack_into("<I",raw,0x60+i*4,len(packed));body+=packed
+            struct.pack_into("<I",raw,12,0x3f);(exefs/"main").write_bytes(bytes(raw[:256])+body)
+            original=pipeline.sha(exefs/"main")
+            profile={"modules":{"main":"0x7000000000"},"module_window_bytes":64*1024*1024,"simd":"c"}
+            source=ROOT/"upstream/smm2recomp/recomp";output=root/"generated"
+            generator.generate(source,exefs,output,profile)
+            self.assertIn("(uint64_t)(0x2aull)",(output/"main/main_000.c").read_text())
+            # mov x0, #42 -> mov x0, #121: the receipt's input changes, so the module is translated again.
+            patches_file=root/"4.0.1-patches.json"
+            patches_file.write_text(json.dumps([{"module":"main","offset":"0x20","original":"0xd2800540",
+                                                 "patched":"0xd2800f20","reason":"test"}]))
+            patches=generator.load_patches(patches_file,profile["modules"])
+            modules=generator.generate(source,exefs,output,profile,patches)
+            self.assertIn("(uint64_t)(0x79ull)",(output/"main/main_000.c").read_text())
+            self.assertEqual(modules["main"]["sha256"],original)  # (the hot list's '# input' hash stays the module's)
+            self.assertEqual(pipeline.sha(exefs/"main"),original)
+            self.assertEqual(list(output.glob("*.nso")),[])  # (the patched copy is temporary)
+            with self.assertRaisesRegex(ValueError,"expects 0xd2800541, the module has 0xd2800540"):
+                generator.generate(source,exefs,root/"other",profile,{"main":[(0x20,0xd2800541,0xd2800f20)]})
+            for bad in ({"module":"sdk","offset":"0x20","original":"0x0","patched":"0x0","reason":"x"},
+                        {"module":"main","offset":"0x22","original":"0x0","patched":"0x0","reason":"x"},
+                        {"module":"main","offset":"0x20","original":"0x0","patched":"0x0","reason":""}):
+                patches_file.write_text(json.dumps([bad]))
+                with self.assertRaisesRegex(ValueError,"Invalid instruction patch"):
+                    generator.load_patches(patches_file,profile["modules"])
+
     def test_missing_runtime_receipt_never_rebaselines_changed_sources(self):
         with tempfile.TemporaryDirectory(prefix='mk8-runtime-repair-') as temporary:
             job = Path(temporary)/'build'

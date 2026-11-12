@@ -45,7 +45,7 @@ def select_profile(config):
         identity = sha(main)
         for path in sorted((ROOT / "games/mk8d/profiles").glob("*.json")):
             profile = json.loads(path.read_text(encoding="utf-8"))
-            if profile.get("input_sha256", {}).get("main") == identity:
+            if isinstance(profile, dict) and profile.get("input_sha256", {}).get("main") == identity:  # (not a patch list)
                 return path
     return ROOT / "games/mk8d/profiles/development.json"
 
@@ -150,6 +150,8 @@ def build(config, local):
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
     # Optional profile of the game's hot functions; the rest compile without optimisation (toolchain/native.py).
     hot_list = profile_path.with_name(profile_path.stem + "-hot-functions.txt")
+    # Optional instruction patches, each checked against the module's original word (toolchain/recompiler/generate.py).
+    patches = profile_path.with_name(profile_path.stem + "-patches.json")
     upstream = Path(config.get("upstream") or ROOT / "upstream/smm2recomp").resolve()
     inputs = {name: sha(Path(config["exefs"]) / name) for name in (*profile["modules"], "main.npdm")}
     inputs["profile"] = sha(profile_path)
@@ -184,7 +186,8 @@ def build(config, local):
         host = pool.submit(build_host, prepared, job / "host-optimized", workers=host_workers)
         dll_link = pool.submit(prepare_dll_link, job / "linker-check")
         print("Etapa: traduzir AArch64 para C e preparar runtime Windows em paralelo.", flush=True)
-        subprocess.run([python_tool(), ROOT / "toolchain/recompiler/generate.py", "--source", prepared, "--exefs", imported, "--output", job / "generated", "--profile", profile_path], check=True)
+        subprocess.run([python_tool(), ROOT / "toolchain/recompiler/generate.py", "--source", prepared, "--exefs", imported, "--output", job / "generated", "--profile", profile_path,
+                        *(["--patches", patches] if patches.is_file() else [])], check=True)
         receipt = {"identity": identity, "inputs": inputs, "source": str(prepared), "generated": str(job / "generated"), "state": "generated", "gameplay_verified": False,
                    "remaining": ["link native graphics and game code", "boot and complete a race"]}
         atomic_json(job / "generation-receipt.json", receipt)
