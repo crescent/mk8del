@@ -58,6 +58,44 @@ Preparação 0.1.8 (testes): recuperação de caches, isolamento Python/pip, coo
 - Fechar a janela não interrompe uma preparação ou o jogo em andamento.
 - Importação XCI/XCZ, DLC e outras versões do jogo estão fora do escopo até o percurso atual ser qualificado.
 
+## 6. Plano: build, desempenho e launcher (12/11/2026)
+
+Vem da comparação com o Racing 8 DX Recomp (ideias apenas; [THIRD_PARTY.md](THIRD_PARTY.md)) e da compilação em dois níveis já feita ([STATUS.md](STATUS.md)). Cada item é um commit próprio com seu teste. Itens de desempenho só entram com A/B medido: dois GPs por variante (`scripts/test-race.py` com `LARECOMP_VK_PROF=1 MK8_FRAME_TIMES=1`, `scripts/frame-stats.py`). Itens de interface exigem teste no navegador, `cargo fmt` e Clippy.
+
+Já conferido no código, fora do plano: o despacho de funções (`runtime/dispatch.c` do upstream) usa cache por thread sem atômicos nem leitura de MXCSR, e `FN_ENTER` custa um desvio previsto quando o perfil está desligado. Só voltar a isso se o amostrador mostrar `dispatch_slow` entre as funções mais caras.
+
+### Fase A — fechar a compilação em dois níveis
+
+1. Corrigir a navegação de copas em `scripts/test-race.py`: confirmar a pista pela imagem antes de medir. Hoje "special 3" correu Water Park.
+2. Opção `--fnprof` em `test-race.py` que grava e une as listas de funções na `4.0.1-hot-functions.txt`, mantendo o cabeçalho `# input`. Ampliar a lista com itens e derrapagem do jogador, outras copas, Batalha, tela dividida e LAN.
+3. Pronto quando: as funções frias amostradas em corridas desses modos ficarem abaixo de 1% das amostras da thread do jogo e o GP continuar a 60 FPS.
+
+### Fase B — build mais rápida e mais segura
+
+4. **Cache de objetos por headers usados.** Em `toolchain/native.py`, a identidade passa a cobrir só os headers alcançados a partir dos `#include` das unidades geradas (hoje `cpu.h`, `simd.h` e `simd_fp.h` e seus includes), não os 24 de `runtime/`. Teste em `tests/test_native.py`: mudar um header não incluído não recompila nada; mudar `cpu.h` recompila tudo.
+5. **Partida de teste depois da build.** Antes de gravar `candidate.json`, `toolchain/build.py` abre o jogo até a tela-título com `LARECOMP_WINDOW_SHOT` + `LARECOMP_EXIT_AFTER_SHOT`, com tempo limite. Se der FATAL, travar ou não chegar à tela, o candidato anterior continua ativo e o relatório guarda o log. Teste: um erro forçado por variável de ambiente não promove o candidato.
+6. **Patches de instrução conferidos.** Lista `games/mk8d/patches/4.0.1.json` com módulo, offset, palavra original, palavra nova e motivo, aplicada à cópia do NSO antes do `gen.py`. Se a palavra original não bater, a build falha. Sem patches ativos até o item 7. Teste com um módulo sintético.
+
+### Fase C — desempenho
+
+7. **Tela dividida a 60 FPS.** Depende da correção dos controles na seleção para 2 jogadores (seção 1). Conferir e desmontar a instrução em `main+0xafece8` no nosso `main`, aplicar pelo item 6 como opção desligada por padrão e medir 2–4 jogadores. A velocidade do jogo tem de continuar correta.
+8. **Predefinição Notebook.** O runtime já lê `resolution`, `upscaler` (FSR 1) e `antialias`, mas o launcher só expõe `frame_gen`, `fullscreen` e `show_fps` (`VIDEO` em `apps/launcher/src/game_settings.rs`). Expor as três chaves e um botão que aplica `resolution = 75%`, `upscaler = fsr1` e `antialias = off`. Antes, confirmar que cada chave muda o caminho Vulkan do MK8. Medir quadro e VRAM em cada valor.
+9. VRAM entre pistas e picos de shader continuam na seção 3; não duplicar aqui.
+
+### Fase D — launcher e UX
+
+10. **Mensagens claras na preparação.** Trocar os erros genéricos de `toolchain/import_mk8.py`, `toolchain/build.py` e `apps/launcher/src/installer.rs` por casos com texto em inglês e PT-BR (`web/i18n.js`): jogo errado, versão diferente de 4.0.1, chave ausente ou incompatível, arquivo XCI/XCZ e atualização ausente. Um teste por caso.
+11. **Abrir direto no jogo.** Flag `--play` em `apps/launcher/src/main.rs`: inicia o candidato pronto pelo mesmo caminho do botão Jogar, sem abrir a janela. Se não houver candidato ou o jogo falhar, abre o launcher na mensagem de erro. Opcional: criar atalho na área de trabalho.
+12. **Mods (uma pasta).** O runtime já aceita `RECOMP_MOD_DIR`, e o upstream tem uma página de mods no menu do jogo (`runtime/ui/mods_page.mm`). Primeiro verificar se ela funciona no Windows. Depois, aba no launcher que lista `data/mods/*/romfs`, ativa uma e passa a variável ao abrir. Combinar vários mods não está planejado.
+13. **Menu dentro do jogo.** O menu ImGui do upstream (`runtime/ui/menu.mm`) já é compilado no Windows (`toolchain/host.py`). Levantar o que ele mostra, esconder opções de outros jogos (vida, rupias e afins), garantir que launcher e menu leiam e gravem o mesmo arquivo de configurações e documentar como abrir. Pronto quando uma mudança no menu persiste e aparece no launcher.
+14. **Controles por dispositivo.** Começar pela tela de controles do jogo (`runtime/ui/controls_ui.mm`): perfil por GUID SDL e associação apertando o botão. Atribuição automática de 2–4 jogadores só depois da correção da tela dividida.
+
+### Fora do plano
+
+FSR 3/4, DLSS e HDR (o renderizador é outro; custo alto), DLC, editor de Mii e mais de 60 FPS reais (`frame_gen = 120` já é interpolação). A compilação `-O2` das funções mais quentes só entra se um A/B mostrar a thread do jogo limitada pela CPU.
+
+Ordem sugerida: A → 4, 5 → 10, 11 → 8 → 6, 7 → 12, 13, 14. Nenhum item altera `gameplay_verified`.
+
 ## Como ajudar
 
 1. Instale pelo `setup.exe` do Release mais recente e prepare com os arquivos do **seu** console.
