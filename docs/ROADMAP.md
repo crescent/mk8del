@@ -68,9 +68,9 @@ Já conferido no código, fora do plano: o despacho de funções (`runtime/dispa
 
 ### Fase A — fechar a compilação em dois níveis
 
-1. Corrigir a navegação de copas em `scripts/test-race.py`: confirmar a pista pela imagem antes de medir. Hoje "special 3" correu Water Park.
-2. Opção `--fnprof` em `test-race.py` que grava e une as listas de funções na `4.0.1-hot-functions.txt`, mantendo o cabeçalho `# input`. Ampliar a lista com itens e derrapagem do jogador, outras copas, Batalha, tela dividida e LAN.
-3. Pronto quando: as funções frias amostradas em corridas desses modos ficarem abaixo de 1% das amostras da thread do jogo e o GP continuar a 60 FPS.
+1. Feito: `test-race.py` confirma a pista pelo arquivo `Course/` lido e tem `--character-picker` para saves cujo personagem abre o seletor de cores.
+2. Feito: `--fnprof` une os perfis à lista. Cobertas uma pista por copa, GP e Batalha com derrapagem e itens. Funções chamadas uma só vez ficam frias; compilação com cache vazio em 137 s.
+3. Feito em parte: chamadas a funções frias em pistas fora da lista ficaram em 0,05–0,07% e o GP continua a 60 FPS. Faltam tela dividida (depende da correção da seleção para 2 jogadores) e LAN (portar `test-multiplayer.py` para a pasta de dados atual).
 
 ### Fase B — build mais rápida e mais segura
 

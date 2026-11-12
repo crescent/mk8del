@@ -83,8 +83,10 @@ def race_input(mode, last_frame, course='stadium', cup=0, track=None, picker=Fal
 def merge_hot_functions(path, profile, modules):
     """Add a run's profiled functions ("addr count" lines) to the hot list; returns how many were new.
 
-    The list's '# input' lines name the module hashes it was recorded from (toolchain/native.py ignores a list that
-    doesn't match the build); a run of other modules is refused instead of mixing addresses.
+    Functions entered only once are left out: setup code that runs straight through (the largest generated units are
+    such functions, each 50-80 s to optimise) gains nothing from optimisation. The list's '# input' lines name the
+    module hashes it was recorded from (toolchain/native.py ignores a list that doesn't match the build); a run of
+    other modules is refused instead of mixing addresses.
     """
     header, hot = [], set()
     for line in Path(path).read_text(encoding='utf-8').splitlines():
@@ -95,7 +97,8 @@ def merge_hot_functions(path, profile, modules):
     recorded = dict(line.split()[2:] for line in header if line.startswith('# input '))
     if recorded != modules:
         raise SystemExit(f'{path} was recorded from other game modules; record a new list for this build')
-    new = {int(line.split()[0], 16) for line in profile.splitlines() if line.strip()} - hot
+    rows = [line.split() for line in profile.splitlines() if line.strip()]
+    new = {int(addr, 16) for addr, calls in rows if int(calls) >= 2} - hot
     if new:
         lines = header + [f'{addr:x}' for addr in sorted(hot | new)]
         Path(path).write_bytes(('\n'.join(lines) + '\n').encode('utf-8'))
@@ -164,8 +167,9 @@ def run(args):
         LARECOMP_SHOT_PATH=(session / 'frame-%05d.png').as_posix(),
         LARECOMP_EXIT_AFTER_SHOT='1', LARECOMP_LOG_FILES='1',
     )
-    if args.fnprof:  # (every guest function entered from the start, written at the last frame: runtime fnprof.c)
-        env.update(LARECOMP_FNPROF=f'0:{args.last_frame}', LARECOMP_FNPROF_OUT=str(session / 'fnprof.txt'))
+    if args.fnprof:  # (every guest function entered from the start: runtime fnprof.c; written just before the exit at
+        # the last capture, which comes first on the same frame)
+        env.update(LARECOMP_FNPROF=f'0:{args.last_frame - 10}', LARECOMP_FNPROF_OUT=str(session / 'fnprof.txt'))
     (session / 'run.json').write_text(json.dumps({
         'candidate': candidate['identity'], 'mode': args.mode, 'options': args.env,
         'course': args.course, 'cup': args.cup, 'track': args.track, 'character_picker': args.character_picker,

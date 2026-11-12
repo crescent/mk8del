@@ -71,7 +71,7 @@ class RaceScriptTests(unittest.TestCase):
             self.assertEqual(merge_hot_functions(path, '70000001b4 9\n700000019c 3\n', modules), 1)
             self.assertEqual(path.read_text(encoding='utf-8').splitlines(),
                              header + ['7000000024', '700000019c', '70000001b4'])
-            self.assertEqual(merge_hot_functions(path, '700000019c 1\n', modules), 0)
+            self.assertEqual(merge_hot_functions(path, '700000019c 1\n7000000300 1\n', modules), 0)  # (once: setup)
             with self.assertRaisesRegex(SystemExit, 'other game modules'):
                 merge_hot_functions(path, '7000000100 1\n', {**modules, 'main': 'dd'})
 
