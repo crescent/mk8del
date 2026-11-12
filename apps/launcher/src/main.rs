@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 //! MK8-online Launcher: a native Tauri window over the local API server.
 //! `--headless` (or the older `--no-browser`) keeps only the server, for tests.
+//! `--play` starts the prepared game without the window; the window opens only if it cannot start or crashes.
 mod console;
 mod game_session;
 mod game_settings;
@@ -287,7 +288,18 @@ fn run_at(root: PathBuf, args: &[String], headless: bool) -> Result<(), Error> {
         .map(|b| format!("{b:02x}"))
         .collect::<String>();
     let parent = (!headless).then(|| Arc::new(OnceLock::new()));
-    let app = server::App::new(root, local.clone(), config, parent.clone());
+    let mut app = server::App::new(root, local.clone(), config, parent.clone());
+    if args.iter().any(|v| v == "--play") {
+        match app.play_solo() {
+            // (the game outlives this process; waiting here only decides whether the window is needed)
+            Ok(_) if app.wait_game() => return Ok(()),
+            Ok(_) => {
+                app.startup_error =
+                    Some("O jogo fechou com erro. O relatório para enviar está em Suporte.".into())
+            }
+            Err(error) => app.startup_error = Some(error),
+        }
+    }
     save(
         &local.join("launcher.json"),
         &json!({"url":url,"pid":std::process::id()}),

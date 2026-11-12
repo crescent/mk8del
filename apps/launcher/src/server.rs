@@ -40,6 +40,8 @@ pub struct App {
     /// Set by a started update: the server exits after answering, so the installer can replace the launcher.
     exit_requested: bool,
     last_report: Option<String>,
+    /// Why `--play` opened the window instead of only the game (shown once the page loads).
+    pub startup_error: Option<String>,
 }
 /// The console keys beside the base package (or in its `keys` folder) or in `%USERPROFILE%\.switch`.
 fn detect_keys(config: &Config) -> Option<PathBuf> {
@@ -123,7 +125,54 @@ impl App {
             window,
             exit_requested: false,
             last_report: None,
+            startup_error: None,
         }
+    }
+
+    /// The Play button's solo path: the installed game, else the prepared candidate.
+    pub fn play_solo(&mut self) -> Result<u32> {
+        self.status();
+        if self.game.is_some() {
+            return Err("O jogo já está aberto.".into());
+        }
+        if self.setup.running() || self.build.poll().state == "running" {
+            return Err("Aguarde a preparação.".into());
+        }
+        self.start_game(None)
+    }
+
+    fn start_game(&mut self, network: Option<(String, u8)>) -> Result<u32> {
+        let install = self.installation();
+        console::ensure_hidden();
+        let candidate = install.is_none();
+        let install = match install {
+            Some(install) => install,
+            None => load(&self.local.join("candidate.json"))
+                .map_err(|_| "Nenhuma build pronta. Prepare o jogo no Launcher.".to_string())?,
+        };
+        let child = crate::game_session::spawn(&crate::game_session::Request {
+            root: self.root.clone(),
+            local: self.local.clone(),
+            install,
+            network,
+            username: self.username.clone(),
+            candidate,
+        })?;
+        let pid = child.id();
+        self.game_exit = None;
+        self.game = Some(child);
+        Ok(pid)
+    }
+
+    /// Waits for the game started by `play_solo`; true when it closed normally. A crash is recorded (and its
+    /// report written) as for a game started from the window.
+    pub fn wait_game(&mut self) -> bool {
+        let Some(game) = self.game.as_mut() else {
+            return false;
+        };
+        let closed = game.wait().is_ok_and(|exit| exit.success());
+        self.status();
+        closed
     }
 
     fn store_config(&mut self, config: Config) -> Result<()> {
@@ -262,7 +311,7 @@ impl App {
                 .to_string_lossy()
                 .into_owned();
         }
-        json!({"package_import":package_import,"import_ready":package_import && imported.is_dir(),"room_menu":self.room_menu,"setup":self.setup.status(),"tools":self.tools,"tools_ready":self.tools.iter().all(|c|c["ok"]==true),"native_dialogs":self.window.is_some(),"build":build,"candidate":candidate_exists,"candidate_stale":candidate_stale,"candidate_version":candidate_version,"game_exit":self.game_exit,"installed":install.is_some(),"profile":install.as_ref().map(|i|&i.profile),"gameplay_verified":install.as_ref().is_some_and(|i|i.gameplay_verified),"game_pid":self.game.as_ref().map(|c|c.id()),"session":{"hosting":self.host.is_some(),"internet_available":relay::url().is_some(),"room_code":self.internet_room.as_ref().map(|room|&room.code),"relay":self.host.as_ref().map(|h|h.address.to_string()),"participants":self.host.as_ref().map(|h|h.connected()).unwrap_or(0),"connected":self.gateway.as_ref().is_some_and(|g|g.connected()),"slot":self.gateway.as_ref().map(|g|g.slot),"bridge_port":self.gateway.as_ref().map(|g|g.local_addr.port()),"diagnostic_only":install.is_none() && self.candidate().is_none()},"checks":mk8_installer::inspect(&paths),"files":game_files(&self.config, package_import && imported.is_dir()),"upstream":"Runtime local","root":self.root,"version":update::CURRENT,"updates":{"configured":update::repository().is_some(),"installable":update::installable()},"last_report":self.last_report,"data_dir":self.local,"windowed":self.window.is_some()})
+        json!({"package_import":package_import,"import_ready":package_import && imported.is_dir(),"room_menu":self.room_menu,"setup":self.setup.status(),"tools":self.tools,"tools_ready":self.tools.iter().all(|c|c["ok"]==true),"native_dialogs":self.window.is_some(),"build":build,"candidate":candidate_exists,"candidate_stale":candidate_stale,"candidate_version":candidate_version,"game_exit":self.game_exit,"installed":install.is_some(),"profile":install.as_ref().map(|i|&i.profile),"gameplay_verified":install.as_ref().is_some_and(|i|i.gameplay_verified),"game_pid":self.game.as_ref().map(|c|c.id()),"session":{"hosting":self.host.is_some(),"internet_available":relay::url().is_some(),"room_code":self.internet_room.as_ref().map(|room|&room.code),"relay":self.host.as_ref().map(|h|h.address.to_string()),"participants":self.host.as_ref().map(|h|h.connected()).unwrap_or(0),"connected":self.gateway.as_ref().is_some_and(|g|g.connected()),"slot":self.gateway.as_ref().map(|g|g.slot),"bridge_port":self.gateway.as_ref().map(|g|g.local_addr.port()),"diagnostic_only":install.is_none() && self.candidate().is_none()},"checks":mk8_installer::inspect(&paths),"files":game_files(&self.config, package_import && imported.is_dir()),"upstream":"Runtime local","root":self.root,"version":update::CURRENT,"updates":{"configured":update::repository().is_some(),"installable":update::installable()},"last_report":self.last_report,"startup_error":self.startup_error,"data_dir":self.local,"windowed":self.window.is_some()})
     }
     fn handle(&mut self, method: &Method, path: &str, body: &str) -> Result<Value> {
         match (method.as_str(), path) {
@@ -556,7 +605,6 @@ impl App {
                 }
                 let value: Value = serde_json::from_str(body).map_err(|e| e.to_string())?;
                 let online = value["online"].as_bool().unwrap_or(false);
-                let install = self.installation();
                 let net = if online {
                     let gateway = self.gateway.as_ref().ok_or("Crie ou entre em uma sala")?;
                     if !gateway.connected() {
@@ -567,23 +615,7 @@ impl App {
                 } else {
                     None
                 };
-                console::ensure_hidden();
-                let candidate = install.is_none();
-                let install = match install {
-                    Some(install) => install,
-                    None => load(&self.local.join("candidate.json"))?,
-                };
-                let child = crate::game_session::spawn(&crate::game_session::Request {
-                    root: self.root.clone(),
-                    local: self.local.clone(),
-                    install,
-                    network: net,
-                    username: self.username.clone(),
-                    candidate,
-                })?;
-                let pid = child.id();
-                self.game_exit = None;
-                self.game = Some(child);
+                let pid = self.start_game(net)?;
                 Ok(
                     json!({"message":format!("Processo iniciado ({pid}). Corrida ainda não verificada.")}),
                 )
@@ -857,6 +889,18 @@ pub fn serve(mut app: App, server: Server, authority: String, url: String, token
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn play_without_a_build_explains_and_starts_nothing() {
+        let root = std::env::temp_dir().join(format!("mk8-play-empty-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let mut app = App::new(root.clone(), root.clone(), Config::default(), None);
+        let error = app.play_solo().unwrap_err();
+        assert_eq!(error, "Nenhuma build pronta. Prepare o jogo no Launcher.");
+        assert!(app.game.is_none());
+        assert!(!app.wait_game());
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn candidate_network_identity_uses_content_and_launch_still_checks_hashes() {
         let root =

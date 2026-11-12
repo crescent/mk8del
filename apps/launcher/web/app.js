@@ -718,6 +718,7 @@ async function refresh() {
       $("game-folder").value = savedConfig.exefs.replace(/[\\/]exefs[\\/]?$/i, "");
     }
     const status = await refresh();
+    if (status.startup_error) notice(status.startup_error, true);  // (--play could not start the game, or it crashed)
     if ((status.candidate || status.installed) && !status.candidate_stale) showTab("play");  // (stale: the update is on Install)
     i18n.text($("update-state"), "Versão instalada: " + status.version);
     if (status.updates.configured) api("update/check", {}).then(renderUpdate).catch(() => {});
