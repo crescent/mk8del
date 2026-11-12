@@ -213,6 +213,17 @@ fn terminate_tree_with(child: &mut Child, program: &str) -> Result<()> {
     Ok(())
 }
 
+/// The reason toolchain/build.py printed before failing: its last "Erro: " line and the lines after it (a blocked
+/// preparation lists one "- " line per problem).
+pub fn failure_reason(log: &str) -> Option<String> {
+    let start = log
+        .rmatch_indices("Erro: ")
+        .map(|(i, _)| i)
+        .find(|&i| i == 0 || log[..i].ends_with('\n'))?;
+    let reason = log[start + "Erro: ".len()..].trim().replace("\r\n", "\n");
+    (!reason.is_empty()).then_some(reason)
+}
+
 impl Manager {
     pub fn poll(&mut self) -> Status {
         if self.child.is_some() {
@@ -227,12 +238,17 @@ impl Manager {
                 Ok(Some(exit)) => {
                     let ok = exit.success();
                     self.status.state = if ok { "candidate" } else { "failed" }.into();
-                    self.status.detail = if ok {
-                        "Build experimental ligada. Teste solo disponível; gameplay ainda não validado."
-                    } else {
-                        "Preparação interrompida. Consulte o log; ao tentar de novo, as etapas concluídas são reaproveitadas."
-                    }
-                    .into();
+                    let reason = (!ok)
+                        .then(|| self.log.as_ref().and_then(|p| fs::read(p).ok()))
+                        .flatten()
+                        .and_then(|log| failure_reason(&String::from_utf8_lossy(&log)));
+                    self.status.detail = match (ok, reason) {
+                        (true, _) => "Build experimental ligada. Teste solo disponível; gameplay ainda não validado."
+                            .into(),
+                        (false, Some(reason)) => reason,
+                        (false, None) => "Preparação interrompida. Consulte o log; ao tentar de novo, as etapas concluídas são reaproveitadas."
+                            .into(),
+                    };
                     self.status.pid = None;
                     if ok {
                         self.status.percent = 100.0;
@@ -328,7 +344,7 @@ impl Manager {
 
 #[cfg(test)]
 mod tests {
-    use super::progress;
+    use super::{failure_reason, progress};
 
     #[test]
     fn operation_locks_conflict_and_release_without_touching_data() {
@@ -382,6 +398,22 @@ mod tests {
         assert!(failed.is_err());
         assert!(alive);
         assert!(child.try_wait().unwrap().is_some());
+    }
+
+    #[test]
+    fn failure_reason_is_the_last_error_line() {
+        let log = "Importação\nErro: primeiro\nTraceback\nErro: jogo.nsp não é o Mario Kart 8 Deluxe.\r\n";
+        assert_eq!(
+            failure_reason(log).as_deref(),
+            Some("jogo.nsp não é o Mario Kart 8 Deluxe.")
+        );
+        assert_eq!(failure_reason("Compilação nativa: 3/484 unidades\n"), None);
+        let blocked =
+            "MK8: verificando\nErro: Preparação bloqueada:\n- Módulo main\n- Dependências\n";
+        assert_eq!(
+            failure_reason(blocked).as_deref(),
+            Some("Preparação bloqueada:\n- Módulo main\n- Dependências")
+        );
     }
 
     #[test]

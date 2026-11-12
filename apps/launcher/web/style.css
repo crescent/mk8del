@@ -92,6 +92,7 @@ main { padding: 1.5rem 0 3rem 2.5rem; min-width: 0; }
 .hint { color: var(--muted); font-size: 0.88rem; }
 .fine { color: var(--muted); font-size: 0.82rem; margin-top: 1rem; }
 .hint.error, .error { color: var(--bad); }
+#build-detail { white-space: pre-line; }
 .pill { white-space: nowrap; color: var(--muted); font-weight: 600; padding-top: 0.6rem; }
 
 /* sections are rows on the page, not cards */

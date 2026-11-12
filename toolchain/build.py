@@ -409,9 +409,10 @@ if __name__ == "__main__":
                 finish(config, args.local.resolve())
             else:
                 build(config, args.local.resolve())
+    # "Erro: " marks the reason the launcher shows (crates/build-manager: failure_reason).
     except OSError as error:
-        print(describe_io_error(error), file=sys.stderr, flush=True)
+        print("Erro: " + describe_io_error(error), file=sys.stderr, flush=True)
         sys.exit(1)
     except Exception as error:
-        print(str(error), file=sys.stderr, flush=True)
+        print(f"Erro: {error}", file=sys.stderr, flush=True)
         sys.exit(1)

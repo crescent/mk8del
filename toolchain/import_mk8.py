@@ -162,6 +162,94 @@ def tickets(stream, index):
             yield raw[0x2a0:0x2b0].hex() + " = " + raw[0x180:0x190].hex()
 
 
+MK8 = b"0100152000022000"
+MK8_UPDATE = b"0100152000022800"
+
+
+def identify(path):
+    """What a selected file is, from its headers only: 'base', 'update', 'update-other', 'base-other', 'dlc', 'xci',
+    'other-game' or 'not-package', with the PFS0 index when it is one."""
+    with Path(path).open("rb") as stream:
+        head = stream.read(0x200)
+        if Path(path).suffix.lower() in (".xci", ".xcz") or head[0x100:0x104] == b"HEAD":
+            return "xci", None
+        if head[:4] != b"PFS0":
+            return "not-package", None
+        stream.seek(0)
+        try:
+            index = entries(stream, Path(path).stat().st_size)
+        except ValueError:
+            return "not-package", None
+    names = set(index)
+    if any(BASE[:32].encode() + ext in names for ext in (b".nca", b".ncz")):
+        return "base", index
+    if any(PATCH[:32].encode() + ext in names for ext in (b".nca", b".ncz")):
+        return "update", index
+    tickets = [name for name in names if name.endswith(b".tik")]
+    if any(name.startswith(MK8_UPDATE) for name in tickets):
+        return "update-other", index
+    if any(name.startswith(MK8) for name in tickets):
+        return "base-other", index
+    if any(name.startswith(MK8[:12]) for name in tickets):  # (MK8 Deluxe's DLC: 01001520000230xx)
+        return "dlc", index
+    return "other-game", index
+
+
+def key_names(path):
+    """Names in a prod.keys file ("name = value" lines); the values are never read into messages."""
+    names = set()
+    for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
+        name, sep, _ = line.partition("=")
+        if sep:
+            names.add(name.strip().lower())
+    return names
+
+
+def check_packages(base, patch, keys):
+    """Named, specific errors for the usual wrong selections, before the long import. Returns (base, update) in the
+    right order: two packages chosen in swapped fields are accepted."""
+    kinds = {path: identify(path) for path in (base, patch)}
+    if {kinds[base][0], kinds[patch][0]} == {"base", "update"}:
+        if kinds[base][0] == "update":
+            print("Importação: jogo base e atualização estavam nos campos trocados; usando cada um no seu lugar.", flush=True)
+            base, patch = patch, base
+    else:
+        for path, field in ((base, "base"), (patch, "update")):
+            kind = kinds[path][0]
+            if kind == field:
+                continue
+            name = Path(path).name
+            if kind == "xci":
+                raise ValueError(f"{name} é um XCI/XCZ (cartucho), que não é aceito. Use o NSP/NSZ do jogo base e da "
+                                 "atualização 4.0.1, ou selecione uma pasta já extraída.")
+            if kind == "not-package":
+                raise ValueError(f"{name} não é um pacote NSP/NSZ.")
+            if kind == "other-game":
+                raise ValueError(f"{name} não é o Mario Kart 8 Deluxe.")
+            if kind == "dlc":
+                raise ValueError(f"{name} é um DLC do MK8 Deluxe. Selecione o jogo base e a atualização 4.0.1.")
+            if kind == "update-other":
+                raise ValueError(f"{name} é uma atualização de outra versão do MK8 Deluxe. O MK8-online usa "
+                                 "exatamente a atualização 4.0.1.")
+            if kind == "base-other":
+                raise ValueError(f"{name} é o MK8 Deluxe, mas o conteúdo do jogo base difere do esperado "
+                                 "(pacote modificado ou incompleto).")
+            if field == "base":  # (an update in both fields)
+                raise ValueError("Os dois arquivos são a atualização 4.0.1: falta o jogo base.")
+            raise ValueError("Os dois arquivos são o jogo base: falta a atualização 4.0.1.")
+    names = key_names(keys)
+    if "header_key" not in names:
+        raise ValueError("O prod.keys está incompleto (falta header_key). Extraia as chaves de novo do seu console.")
+    for path in (base, patch):
+        for ticket in kinds[path][1]:
+            if ticket.endswith(b".tik") and ticket.startswith((MK8, MK8_UPDATE)):
+                revision = max(int(ticket[30:32], 16), 1) - 1  # (the rights ID's last byte: key generation)
+                if f"titlekek_{revision:02x}" not in names and f"master_key_{revision:02x}" not in names:
+                    raise ValueError(f"O prod.keys não tem as chaves da geração {revision} usada pelo MK8 4.0.1. "
+                                     "Extraia as chaves de novo do seu console, com o sistema atualizado.")
+    return base, patch
+
+
 def extract(base, patch, control, keys, title_keys, scratch, output, tool, workers=1):
     data = ("\n".join(title_keys) + "\n").encode("ascii")
     print("Importação: aplicando atualização e extraindo arquivos com verificação de integridade.", flush=True)
@@ -172,8 +260,11 @@ def extract(base, patch, control, keys, title_keys, scratch, output, tool, worke
     if result.returncode:
         if result.returncode == 8:
             raise ValueError("Espaço insuficiente para extrair o RomFS e preservar a reserva de 4 GiB.")
-        stage = {3: "prod.keys", 4: "tickets", 5: "ExeFS", 6: "metadados", 7: "RomFS",
-                 9: "índice do RomFS", 10: "extração do RomFS"}.get(result.returncode, "extrator")
+        if result.returncode in (3, 4, 5):  # (the NCAs already matched the 4.0.1 hashes: opening them failed on the keys)
+            raise ValueError("O prod.keys não abriu os pacotes: chaves incompletas ou de um sistema anterior à "
+                             "atualização 4.0.1. Extraia as chaves de novo do seu console.")
+        stage = {6: "metadados", 7: "RomFS", 9: "índice do RomFS", 10: "extração do RomFS"}.get(
+            result.returncode, "extrator")
         raise ValueError(f"Falha na importação ({stage}). Confira o prod.keys e os dois pacotes.")
 
 
@@ -222,7 +313,14 @@ def prepare(config, local, validate_game_identity):
             print(f"Importação anterior incompleta ({error}); extraindo de novo.", flush=True)
             remove_owned(target, local / "imports")
     if not packages:
-        raise ValueError("Selecione os pacotes base e atualização 4.0.1 e o prod.keys.")
+        if not base.is_file():
+            raise ValueError("Jogo base não selecionado (ou o arquivo não existe mais).")
+        if not patch.is_file():
+            raise ValueError("Atualização 4.0.1 não selecionada (ou o arquivo não existe mais).")
+        if base == patch:
+            raise ValueError("O mesmo arquivo foi escolhido para o jogo base e para a atualização.")
+        raise ValueError("prod.keys não selecionado (ou o arquivo não existe mais).")
+    base, patch = check_packages(base, patch, keys)
     reserve = 4 * GIB + sum(SIZES.values()) + ROMFS_BUDGET + 128 * 1024**2
     try:
         require_space(local, reserve)
