@@ -222,16 +222,48 @@ class RuntimeDependencyManifestTests(unittest.TestCase):
             save = local/'user-save.bin'
             save.write_bytes(b'preserved save')
             (local/'candidate.json').write_text(json.dumps({'executable': pipeline.file_record(exe),
-                'files': {'gamelib': pipeline.file_record(game)}, 'gameplay_verified': False}))
+                'files': {'gamelib': pipeline.file_record(game)}, 'data_root': str(local/'data'), 'gameplay_verified': False}))
             def dependencies(*args, **kwargs):
                 (output/'vulkan-1.dll').write_bytes(b'verified loader fixture')
-            with patch('host.build_host', return_value=exe), patch.object(pipeline.subprocess, 'run', side_effect=dependencies):
+            with patch('host.build_host', return_value=exe), patch.object(pipeline.subprocess, 'run', side_effect=dependencies), \
+                    patch.object(pipeline, 'boot_check') as boot:
                 pipeline.refresh_runtime(local)
+            boot.assert_called_once_with([exe, local/'data/extracted'], str(game), local)
             candidate = json.loads((local/'candidate.json').read_text())
             self.assertEqual(candidate['files']['vulkan-1.dll'], pipeline.file_record(output/'vulkan-1.dll'))
             self.assertEqual(candidate['files']['gamelib'], pipeline.file_record(game))
             self.assertEqual(save.read_bytes(), b'preserved save')
             self.assertFalse(candidate['gameplay_verified'])
+
+
+class BootCheckTests(unittest.TestCase):
+    """The build's title-screen check, with stand-in programs for the runtime."""
+    GAMES = {
+        'title': "import os, pathlib; pathlib.Path(os.environ['LARECOMP_SHOT_PATH']).write_bytes(b'png')",
+        'crash': "print('FATAL: no function at 7000001234'); raise SystemExit(3)",
+        'hang': "import time; time.sleep(60)",
+    }
+
+    def check(self, game, timeout=60):
+        with tempfile.TemporaryDirectory() as folder:
+            local = Path(folder)
+            script = local/'game.py'
+            script.write_text(self.GAMES[game], encoding='utf-8')
+            try:
+                with patch.dict(os.environ, {'MK8_SKIP_BOOT_CHECK': ''}):
+                    pipeline.boot_check([sys.executable, script], local/'game.dll', local, timeout=timeout)
+            finally:
+                log = (local/'boot-check.log').read_text(encoding='utf-8', errors='replace')
+        return log
+
+    def test_title_screen_passes(self):
+        self.check('title')
+
+    def test_crash_or_hang_is_not_published(self):
+        with self.assertRaisesRegex(ValueError, 'FATAL: no function at 7000001234.*candidato não publicado'):
+            self.check('crash')
+        with self.assertRaisesRegex(ValueError, 'candidato não publicado'):
+            self.check('hang', timeout=2)
 
 
 if __name__=="__main__":

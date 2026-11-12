@@ -268,6 +268,45 @@ def prepare_system_data(config, local):
         mirror(local/'user-no-mii/fonts', config['fonts'], copy_ok=True)
 
 
+def boot_check(command, gamelib, local, timeout=240):
+    """Start a new build in a scratch data folder, in a hidden window, until it captures the title screen (frame 360).
+
+    A crash, hang or exit before that keeps candidate.json unchanged and leaves the game's output in
+    <local>/boot-check.log. MK8_SKIP_BOOT_CHECK=1 skips it (machines without a usable Vulkan driver).
+    """
+    if os.environ.get('MK8_SKIP_BOOT_CHECK') == '1':
+        print('Teste de inicialização pulado (MK8_SKIP_BOOT_CHECK=1).', flush=True)
+        return
+    import tempfile
+    print('Etapa: abrir o jogo até a tela-título (janela oculta).', flush=True)
+    log = local/'boot-check.log'
+    with tempfile.TemporaryDirectory(prefix='mk8-boot-') as scratch:
+        shot = Path(scratch)/'title.png'
+        env = {key: value for key, value in os.environ.items()
+               if not key.startswith(('MK8_', 'LARECOMP_', 'RECOMP_', 'NX_LAN_'))}
+        env.update(MK8_EXPERIMENTAL_NO_MII='1', LARECOMP_DATA_ROOT=scratch, LARECOMP_GAME_LIB=str(gamelib),
+                   LARECOMP_HIDDEN='1', LARECOMP_NO_USER_INPUT='1', LARECOMP_WINDOW_SHOT='360:360:1',
+                   LARECOMP_SHOT_PATH=str(shot), LARECOMP_EXIT_AFTER_SHOT='1')
+        started = time.perf_counter()
+        with log.open('wb') as stream:
+            child = subprocess.Popen([str(part) for part in command], cwd=scratch, env=env, stdin=subprocess.DEVNULL,
+                                     stdout=stream, stderr=subprocess.STDOUT)
+            try:
+                child.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                # (the runtime may re-execute itself as a child: end the whole tree)
+                if os.name == 'nt':
+                    subprocess.run(['taskkill', '/PID', str(child.pid), '/T', '/F'],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                child.kill()
+                child.wait()
+        if child.returncode or not shot.is_file():
+            fatal = [line for line in log.read_text(encoding='utf-8', errors='replace').splitlines() if 'FATAL' in line]
+            reason = fatal[-1] if fatal else f'saída {child.returncode}' if child.returncode else 'sem tela-título'
+            raise ValueError(f'A build nova não chegou à tela-título ({reason}); candidato não publicado. Log: {log}')
+    print(f'Tela-título alcançada em {time.perf_counter() - started:.1f} s.', flush=True)
+
+
 def finish(config, local, executable=None):
     # A candidate enables only the explicit diagnostic launch, never normal/online play.
     from host import build_host, link_game
@@ -309,6 +348,7 @@ def finish(config, local, executable=None):
     files['nacp'] = file_record(nacp)
     for name in ('main', 'sdk', 'subsdk0', 'main.npdm'):
         files['npdm' if name == 'main.npdm' else name] = file_record(job/'inputs/exefs'/name)
+    boot_check([exe, data/'extracted'], dll, local)
     executable = file_record(exe)
     identity = hashlib.sha256(json.dumps({'generation': generated['identity'], 'files': files, 'exe': executable}, sort_keys=True).encode()).hexdigest()
     candidate = {'schema': 2, 'identity': identity, 'profile': 'mk8d-smm2-experimental', 'executable': executable,
@@ -337,6 +377,7 @@ def refresh_runtime(local):
     for dll in output.glob('*.dll'):
         if dll.resolve() != Path(candidate['files']['gamelib']['path']).resolve():
             candidate['files'][dll.name] = file_record(dll)
+    boot_check([exe, Path(candidate['data_root'])/'extracted'], candidate['files']['gamelib']['path'], local)
     candidate['executable'] = {'path': str(exe), 'sha256': sha(exe), 'bytes': exe.stat().st_size}
     candidate['identity'] = hashlib.sha256(json.dumps({'generation': generated['identity'], 'files': candidate['files'], 'exe': candidate['executable']}, sort_keys=True).encode()).hexdigest()
     atomic_json(local/'candidate.json', candidate)

@@ -114,6 +114,8 @@ pub fn progress(log: &str) -> (f64, String) {
             set(88.0, "Copiando as bibliotecas do motor");
         } else if line.starts_with("Etapa: preparar os dados do jogo") {
             set(90.0, "Preparando os dados do jogo");
+        } else if line.starts_with("Etapa: abrir o jogo") {
+            set(95.0, "Testando a abertura do jogo");
         } else if line.starts_with("Build experimental integrada")
             || line.starts_with("Runtime e ligação:")
         {
@@ -410,6 +412,8 @@ mod tests {
         assert_eq!(progress(&log).0, 88.0);
         log += "Etapa: preparar os dados do jogo.\n";
         assert_eq!(progress(&log), (90.0, "Preparando os dados do jogo".into()));
+        log += "Etapa: abrir o jogo até a tela-título (janela oculta).\n";
+        assert_eq!(progress(&log), (95.0, "Testando a abertura do jogo".into()));
         log += "Build experimental integrada. Use Testar solo experimental.\n";
         assert_eq!(progress(&log), (100.0, "Concluído".into()));
     }

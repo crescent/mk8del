@@ -338,6 +338,7 @@
   "Preparando o motor do jogo": "Preparing the game runtime",
   "Copiando as bibliotecas do motor": "Copying runtime libraries",
   "Preparando os dados do jogo": "Preparing game data",
+  "Testando a abertura do jogo": "Checking that the game starts",
   "Concluído": "Completed",
   "Build experimental ligada. Teste solo disponível; gameplay ainda não validado.": "Experimental build is ready. Solo testing is available; gameplay has not been validated yet.",
   "Preparação interrompida. Consulte o log; ao tentar de novo, as etapas concluídas são reaproveitadas.": "Preparation interrupted. Check the log; retrying will reuse completed steps.",
