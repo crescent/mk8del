@@ -78,6 +78,22 @@ class NativeCacheTests(unittest.TestCase):
         self.assertTrue(all('seconds' in s for s in changed.values()))
         self.assertNotIn('reaproveitadas', log)
 
+    def test_only_included_headers_count(self):
+        compile_build(make_build(self.builds, 'a'), self.cache)
+        unrelated = make_build(self.builds, 'b')
+        (unrelated/'runtime/runtime/menu.h').write_text('int menu_changed(void);\n', encoding='utf-8')
+        _, log = compile_build(unrelated, self.cache)
+        self.assertIn('5 de 5 unidades reaproveitadas', log)
+        # A header reached through another one still counts.
+        nested = make_build(self.builds, 'c')
+        (nested/'runtime/runtime/cpu.h').write_text(HEADER.format(bias=1) + '#include "bias.h"\n', encoding='utf-8')
+        (nested/'runtime/runtime/bias.h').write_text('#define EXTRA 1\n', encoding='utf-8')
+        third, _ = compile_build(nested, self.cache)
+        (nested/'runtime/runtime/bias.h').write_text('#define EXTRA 2\n', encoding='utf-8')
+        fourth, _ = compile_build(nested, self.cache)
+        self.assertNotEqual(third['main_001']['input']['environment'], fourth['main_001']['input']['environment'])
+        self.assertIn('seconds', fourth['main_001'])
+
     def test_corrupted_cache_entry_is_rebuilt_not_trusted(self):
         first, _ = compile_build(make_build(self.builds, 'a'), self.cache)
         address = first['main_002']['cache']

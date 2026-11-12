@@ -34,6 +34,28 @@ def digest(path):
 DEFAULT_OBJECT_CACHE = TOOLS / 'objects'
 
 
+INCLUDE = re.compile(rb'^[ \t]*#[ \t]*include[ \t]*[<"]([^>"]+)[>"]', re.M)
+
+
+def included_headers(sources, include_dir, root):
+    """Name and digest of every header the sources reach by #include, resolved like the compiler (the including
+    file's folder, then -I include_dir); system headers are left to the compiler's digest. A header nothing compiled
+    here includes (UI, services) no longer invalidates the objects of the game code."""
+    found, pending = {}, list(sources)
+    while pending:
+        path = pending.pop()
+        for name in set(INCLUDE.findall(Path(path).read_bytes())):
+            name = name.decode()
+            for folder in (Path(path).parent, include_dir):
+                header = (folder/name).resolve()
+                if header.is_file():
+                    if header not in found:
+                        found[header] = digest(header)
+                        pending.append(header)
+                    break
+    return {(str(p.relative_to(root)) if p.is_relative_to(root) else str(p)): d for p, d in sorted(found.items())}
+
+
 def cache_key(key):
     """Content address of an object: unit source, runtime headers, compiler and flags, without the job path.
 
@@ -196,8 +218,6 @@ def compile_modules(source, generated, output, modules, compiler=DEFAULT_COMPILE
     if not compiler.is_file():
         raise ValueError('Compilador nativo ausente: execute python scripts/setup-native.py')
     output.mkdir(parents=True, exist_ok=True)
-    headers = {str(p.relative_to(source)): digest(p) for p in sorted((source/'runtime').rglob('*.h'))}
-    identity = hashlib.sha256(json.dumps({'headers': headers, 'compiler': digest(compiler)}, sort_keys=True).encode()).hexdigest()
     flags = ['-target', 'x86_64-windows-gnu', '-mcpu=x86_64_v2', optimization, '-fno-strict-aliasing',
              '-Wno-return-type', '-Wno-unused-label', '-D_FILE_OFFSET_BITS=64', '-I' + str(source/'runtime')]
     if optimization != '-O0':
@@ -216,6 +236,8 @@ def compile_modules(source, generated, output, modules, compiler=DEFAULT_COMPILE
             code, table = extra
             entries = [(table if src == generated/'sdk/sdk_table.c' else src, obj) for src, obj in entries]
             entries.append((code, output/'sdk/sdk_assembly.o'))
+    headers = included_headers([src for src, _ in entries], source/'runtime', source)
+    identity = hashlib.sha256(json.dumps({'headers': headers, 'compiler': digest(compiler)}, sort_keys=True).encode()).hexdigest()
     hot = load_hot_functions(hot_functions, generated, modules) if hot_functions and optimization != '-O0' else None
     env = compiler_env()
     cache = Path(cache)
