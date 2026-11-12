@@ -83,7 +83,7 @@ def powershell(script, *args):
 def run_track(cup, index, args):
     command = [sys.executable, str(ROOT / 'scripts/test-race.py'), 'time-trial', '--cup', cup, '--track', str(index),
                '--last-frame', str(args.last_frame), '--shots', '3', '--shot-step', '500', '--timeout', '420',
-               '--cache-from', str(args.cache)]
+               '--cache-from', str(args.cache)] + (['--character-picker'] if args.character_picker else [])
     for pair in args.env:
         command += ['--env', pair]
     done = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding='utf-8', errors='replace')
@@ -155,6 +155,7 @@ def main():
     parser.add_argument('--cups', nargs='+', choices=list(CUPS), default=list(CUPS))
     parser.add_argument('--tracks', nargs='+', type=int, choices=range(4), default=[0, 1, 2, 3])
     parser.add_argument('--last-frame', type=int, default=4400)
+    parser.add_argument('--character-picker', action='store_true', help='passed to test-race.py')
     parser.add_argument('--cache', type=Path, default=ROOT / 'local/user-no-mii/cache')
     parser.add_argument('--env', action='append', default=[], help='NAME=VALUE passed to every run')
     parser.add_argument('--again', action='store_true', help='run tracks already in results.json again')

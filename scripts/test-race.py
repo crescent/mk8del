@@ -21,9 +21,34 @@ PERF = re.compile(r'\[vk\] t=([\d.]+) frame (\d+) ([\d.]+) fps max (\d+)ms')
 CUPS = ('mushroom', 'flower', 'star', 'special', 'egg', 'crossing',
         'shell', 'banana', 'leaf', 'lightning', 'triforce', 'bell')
 COURSES = ('stadium', 'water-park', 'sweet-sweet-canyon')
+# RomFS Course/ folder of each cup's tracks, in the order above; Animal Crossing has one folder per season.
+COURSE_FOLDERS = (
+    ('Gu_FirstCircuit', 'Gu_WaterPark', 'Gu_Cake', 'Gu_DossunIseki'),
+    ('Gu_MarioCircuit', 'Gu_City', 'Gu_HorrorHouse', 'Gu_Expert'),
+    ('Gu_Airport', 'Gu_Ocean', 'Gu_Techno', 'Gu_SnowMountain'),
+    ('Gu_Cloud', 'Gu_Desert', 'Gu_BowserCastle', 'Gu_RainbowRoad'),
+    ('Dgc_YoshiCircuit', 'Du_ExciteBike', 'Du_DragonRoad', 'Du_MuteCity'),
+    ('Dgc_BabyPark', 'Dagb_CheeseLand', 'Du_Woods', 'Du_Animal_'),
+    ('Gwii_MooMooMeadows', 'Gagb_MarioCircuit', 'Gds_PukupukuBeach', 'G64_KinopioHighway'),
+    ('Ggc_DryDryDesert', 'Gsfc_DonutsPlain3', 'G64_PeachCircuit', 'G3ds_DKJungle'),
+    ('Gds_WarioStadium', 'Ggc_SherbetLand', 'G3ds_MusicPark', 'G64_YoshiValley'),
+    ('Gds_TickTockClock', 'G3ds_PackunSlider', 'Gwii_GrumbleVolcano', 'G64_RainbowRoad'),
+    ('Dwii_WariosMine', 'Dsfc_RainbowRoad', 'Du_IcePark', 'Du_Hyrule'),
+    ('D3ds_NeoBowserCity', 'Dagb_RibbonRoad', 'Du_Metro', 'Du_BigBlue'),
+)
+COURSE_READ = re.compile(r'\[fs\] read /?Course/([^/\s]+)/')
 
 
-def race_input(mode, last_frame, course='stadium', cup=0, track=None):
+def courses_read(log):
+    """Race courses whose files the game read (LARECOMP_LOG_FILES), without the menu's."""
+    return sorted({name for name in COURSE_READ.findall(log) if name != 'Gu_Menu'})
+
+
+def course_matches(folder, expected):
+    return folder == expected or expected.endswith('_') and folder.startswith(expected)
+
+
+def race_input(mode, last_frame, course='stadium', cup=0, track=None, picker=False):
     start = '400:A:6,520:DOWN:6,580:A:6,760:A:6'
     if mode == 'time-trial':
         track = COURSES.index(course) if track is None else track
@@ -43,7 +68,15 @@ def race_input(mode, last_frame, course='stadium', cup=0, track=None):
             start += f',{frame}:A:6'
     else:
         start += ''.join(f',{frame}:A:6' for frame in range(920, 2401, 160))
-    return start + f',2700:A:{max(last_frame - 2690, 10)}'
+    script = start + f',2700:A:{max(last_frame - 2690, 10)}'
+    if not picker or mode != 'time-trial':  # (Grand Prix only presses A: it never waits on a given screen)
+        return script
+    # A character with colours (Yoshi, Shy Guy...) opens a picker that takes one more A at 1260: every later screen
+    # opens one A interval (160 frames) later. Which character the cursor starts on depends on the save.
+    steps = [entry.split(':') for entry in script.split(',')]
+    late = [f'{int(s) + 160 if int(s) >= 1260 else s}:{button}:{length}' for s, button, length in steps]
+    late[-1] = f'2860:A:{max(last_frame - 2850, 10)}'
+    return ','.join(sorted(late + ['1260:A:6'], key=lambda entry: int(entry.split(':')[0])))
 
 
 def wait_capture(child, timeout, log):
@@ -92,7 +125,8 @@ def run(args):
     profile = session / 'mii-profile.json'
     shutil.copyfile(origin / 'mii-profile.json', profile)
 
-    script = race_input(args.mode, args.last_frame, args.course, CUPS.index(args.cup), args.track)
+    script = race_input(args.mode, args.last_frame, args.course, CUPS.index(args.cup), args.track,
+                        args.character_picker)
     env = {key: value for key, value in os.environ.items()
            if not key.startswith(('MK8_', 'LARECOMP_', 'RECOMP_', 'NX_LAN_'))}
     env.update(dict(args.env))
@@ -105,11 +139,11 @@ def run(args):
         LARECOMP_INPUT=args.input or script,
         LARECOMP_WINDOW_SHOT=f'{args.last_frame - args.shot_step * (args.shots - 1)}:{args.last_frame}:{args.shot_step}',
         LARECOMP_SHOT_PATH=(session / 'frame-%05d.png').as_posix(),
-        LARECOMP_EXIT_AFTER_SHOT='1',
+        LARECOMP_EXIT_AFTER_SHOT='1', LARECOMP_LOG_FILES='1',
     )
     (session / 'run.json').write_text(json.dumps({
         'candidate': candidate['identity'], 'mode': args.mode, 'options': args.env,
-        'course': args.course, 'cup': args.cup, 'track': args.track,
+        'course': args.course, 'cup': args.cup, 'track': args.track, 'character_picker': args.character_picker,
         'input': env['LARECOMP_INPUT'], 'last_frame': args.last_frame,
         'cache_from': str(args.cache_from.resolve()) if args.cache_from else None,
     }, indent=2), encoding='utf-8')
@@ -122,12 +156,22 @@ def run(args):
             stderr=subprocess.STDOUT,
         )
         wait_capture(child, args.timeout, log)
-    rows = PERF.findall(log.read_text(encoding='utf-8', errors='replace'))
+    text = log.read_text(encoding='utf-8', errors='replace')
+    rows = PERF.findall(text)
+    raced = courses_read(text)
+    print(f'Course: {", ".join(raced) or "none read"}', flush=True)
     print(f'Exit {child.returncode}, {monotonic() - started:.1f}s', flush=True)
     for elapsed, frame, fps, peak in rows[-8:]:
         print(f'{elapsed}s | frame {frame} | {fps} FPS | max {peak} ms')
     if child.returncode or not (session / f'frame-{args.last_frame:05d}.png').is_file():
         raise SystemExit('Candidate failed to reach the final capture; inspect game.log')
+    if args.mode == 'time-trial' and not args.input:
+        cup = CUPS.index(args.cup)
+        track = COURSES.index(args.course) if args.track is None else args.track
+        expected = COURSE_FOLDERS[cup][track]
+        if len(raced) != 1 or not course_matches(raced[0], expected):
+            raise SystemExit(f'Raced {raced or "no course"}, expected {expected}: the menu input missed; discard this run'
+                             ' (a save whose character has colours needs --character-picker, one without must not use it)')
 
 
 if __name__ == '__main__':
@@ -143,6 +187,8 @@ if __name__ == '__main__':
                         help='Time Trial course in Mushroom Cup')
     parser.add_argument('--cup', choices=CUPS, default='mushroom', help='Time Trial cup (with --track)')
     parser.add_argument('--track', type=int, choices=range(4), help='Track 0-3 of --cup (overrides --course)')
+    parser.add_argument('--character-picker', action='store_true',
+                        help="Time Trial: the save's character opens a colour picker (Yoshi, Shy Guy...); one more A")
     parser.add_argument('--env', action='append', default=[], type=lambda x: x.split('=', 1))
     parser.add_argument('--candidate', type=Path, help='candidate.json of another data folder (e.g. a fresh build)')
     args = parser.parse_args()

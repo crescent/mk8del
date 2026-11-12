@@ -10,6 +10,9 @@ from unittest.mock import patch
 script = runpy.run_path(str(Path(__file__).resolve().parents[1]/'scripts/test-race.py'))
 race_input = script['race_input']
 wait_capture = script['wait_capture']
+courses_read = script['courses_read']
+course_matches = script['course_matches']
+COURSE_FOLDERS = script['COURSE_FOLDERS']
 
 
 class RaceScriptTests(unittest.TestCase):
@@ -39,6 +42,23 @@ class RaceScriptTests(unittest.TestCase):
         self.assertNotIn('RIGHT', script)
         self.assertNotIn('880:DOWN', script)
         self.assertTrue(script.endswith('2700:A:2510'))
+
+    def test_character_picker_moves_the_later_screens_one_press_later(self):
+        plain = [entry.split(':') for entry in race_input('time-trial', 4400, cup=3, track=3).split(',')]
+        late = [entry.split(':') for entry in race_input('time-trial', 4400, cup=3, track=3, picker=True).split(',')]
+        self.assertEqual([int(s[0]) for s in late], sorted(int(s[0]) for s in late))
+        self.assertEqual(late, [s for s in plain if int(s[0]) < 1260] + [['1260', 'A', '6']] +
+                         [[str(int(s[0]) + 160), s[1], s[2]] for s in plain if int(s[0]) >= 1260][:-1] +
+                         [['2860', 'A', '1550']])
+        self.assertEqual(race_input('grand-prix', 5200, picker=True), race_input('grand-prix', 5200))
+
+    def test_course_check_reads_the_raced_folder(self):
+        log = '\n'.join(['[fs] read Course/Gu_Menu/course_model.szs', '[fs] read Course/Du_Animal_Summer/course_model.szs',
+                         '[fs] read Course/Du_Animal_Summer/course.kcl', '[fs] read UI/cmn/menu/x.bntx'])
+        self.assertEqual(courses_read(log), ['Du_Animal_Summer'])
+        self.assertTrue(course_matches('Du_Animal_Summer', COURSE_FOLDERS[5][3]))
+        self.assertFalse(course_matches('Gu_Airport', COURSE_FOLDERS[3][3]))
+        self.assertEqual(len({name for cup in COURSE_FOLDERS for name in cup}), 48)
 
     def test_capture_monitor_preserves_exit_status(self):
         with subprocess.Popen([sys.executable, '-c', 'raise SystemExit(7)']) as child:
