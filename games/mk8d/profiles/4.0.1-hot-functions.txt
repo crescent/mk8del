@@ -1,5 +1,5 @@
-# Guest functions entered in scripted runs (LARECOMP_FNPROF): boot, menus, a Grand Prix on Mario Kart Stadium
-# and four Time Trials, 2026-11-12. Only addresses; every other function is compiled with optnone (docs/STATUS.md).
+# Guest functions entered in scripted runs (LARECOMP_FNPROF; scripts/test-race.py --fnprof adds a run).
+# Only addresses; every other function is compiled with optnone. Runs covered: docs/STATUS.md.
 # input main 92edeef4827338f0a481b9e150cdb2b46e258cef5656bc3eae7de67c88defe4a
 # input sdk 427404f3218eaa790f611acd9e45fe0336efb9504f02949054b14de3578bd1c2
 # input subsdk0 78310913ab1c10486169b13795856f8dfae2a0a3b89068517d3835c1d03b2a41

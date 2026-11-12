@@ -14,6 +14,7 @@ from time import monotonic, sleep
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL = ROOT / 'local'
+HOT_FUNCTIONS = ROOT / 'games/mk8d/profiles/4.0.1-hot-functions.txt'
 PERF = re.compile(r'\[vk\] t=([\d.]+) frame (\d+) ([\d.]+) fps max (\d+)ms')
 
 
@@ -79,6 +80,28 @@ def race_input(mode, last_frame, course='stadium', cup=0, track=None, picker=Fal
     return ','.join(sorted(late + ['1260:A:6'], key=lambda entry: int(entry.split(':')[0])))
 
 
+def merge_hot_functions(path, profile, modules):
+    """Add a run's profiled functions ("addr count" lines) to the hot list; returns how many were new.
+
+    The list's '# input' lines name the module hashes it was recorded from (toolchain/native.py ignores a list that
+    doesn't match the build); a run of other modules is refused instead of mixing addresses.
+    """
+    header, hot = [], set()
+    for line in Path(path).read_text(encoding='utf-8').splitlines():
+        if line.startswith('#'):
+            header.append(line)
+        elif line:
+            hot.add(int(line, 16))
+    recorded = dict(line.split()[2:] for line in header if line.startswith('# input '))
+    if recorded != modules:
+        raise SystemExit(f'{path} was recorded from other game modules; record a new list for this build')
+    new = {int(line.split()[0], 16) for line in profile.splitlines() if line.strip()} - hot
+    if new:
+        lines = header + [f'{addr:x}' for addr in sorted(hot | new)]
+        Path(path).write_bytes(('\n'.join(lines) + '\n').encode('utf-8'))
+    return len(new)
+
+
 def wait_capture(child, timeout, log):
     """Monitor only this test's process; the runtime parent waits for its ASLR child."""
     started = monotonic()
@@ -141,6 +164,8 @@ def run(args):
         LARECOMP_SHOT_PATH=(session / 'frame-%05d.png').as_posix(),
         LARECOMP_EXIT_AFTER_SHOT='1', LARECOMP_LOG_FILES='1',
     )
+    if args.fnprof:  # (every guest function entered from the start, written at the last frame: runtime fnprof.c)
+        env.update(LARECOMP_FNPROF=f'0:{args.last_frame}', LARECOMP_FNPROF_OUT=str(session / 'fnprof.txt'))
     (session / 'run.json').write_text(json.dumps({
         'candidate': candidate['identity'], 'mode': args.mode, 'options': args.env,
         'course': args.course, 'cup': args.cup, 'track': args.track, 'character_picker': args.character_picker,
@@ -172,6 +197,10 @@ def run(args):
         if len(raced) != 1 or not course_matches(raced[0], expected):
             raise SystemExit(f'Raced {raced or "no course"}, expected {expected}: the menu input missed; discard this run'
                              ' (a save whose character has colours needs --character-picker, one without must not use it)')
+    if args.fnprof:
+        modules = {name: candidate['files'][name]['sha256'] for name in ('main', 'sdk', 'subsdk0')}
+        added = merge_hot_functions(HOT_FUNCTIONS, (session / 'fnprof.txt').read_text(encoding='utf-8'), modules)
+        print(f'Hot functions: {added} new, added to {HOT_FUNCTIONS.relative_to(ROOT)}', flush=True)
 
 
 if __name__ == '__main__':
@@ -189,6 +218,8 @@ if __name__ == '__main__':
     parser.add_argument('--track', type=int, choices=range(4), help='Track 0-3 of --cup (overrides --course)')
     parser.add_argument('--character-picker', action='store_true',
                         help="Time Trial: the save's character opens a colour picker (Yoshi, Shy Guy...); one more A")
+    parser.add_argument('--fnprof', action='store_true',
+                        help='Profile the functions entered and add them to the hot list (games/mk8d/profiles)')
     parser.add_argument('--env', action='append', default=[], type=lambda x: x.split('=', 1))
     parser.add_argument('--candidate', type=Path, help='candidate.json of another data folder (e.g. a fresh build)')
     args = parser.parse_args()

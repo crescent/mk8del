@@ -2,6 +2,7 @@
 import runpy
 from pathlib import Path
 import subprocess
+import tempfile
 import sys
 from types import SimpleNamespace
 import unittest
@@ -13,6 +14,7 @@ wait_capture = script['wait_capture']
 courses_read = script['courses_read']
 course_matches = script['course_matches']
 COURSE_FOLDERS = script['COURSE_FOLDERS']
+merge_hot_functions = script['merge_hot_functions']
 
 
 class RaceScriptTests(unittest.TestCase):
@@ -59,6 +61,19 @@ class RaceScriptTests(unittest.TestCase):
         self.assertTrue(course_matches('Du_Animal_Summer', COURSE_FOLDERS[5][3]))
         self.assertFalse(course_matches('Gu_Airport', COURSE_FOLDERS[3][3]))
         self.assertEqual(len({name for cup in COURSE_FOLDERS for name in cup}), 48)
+
+    def test_profile_merge_keeps_the_header_and_refuses_other_modules(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'hot.txt'
+            header = ['# runs', '# input main aa', '# input sdk bb', '# input subsdk0 cc']
+            path.write_text('\n'.join(header + ['7000000024', '70000001b4']) + '\n', encoding='utf-8')
+            modules = {'main': 'aa', 'sdk': 'bb', 'subsdk0': 'cc'}
+            self.assertEqual(merge_hot_functions(path, '70000001b4 9\n700000019c 3\n', modules), 1)
+            self.assertEqual(path.read_text(encoding='utf-8').splitlines(),
+                             header + ['7000000024', '700000019c', '70000001b4'])
+            self.assertEqual(merge_hot_functions(path, '700000019c 1\n', modules), 0)
+            with self.assertRaisesRegex(SystemExit, 'other game modules'):
+                merge_hot_functions(path, '7000000100 1\n', {**modules, 'main': 'dd'})
 
     def test_capture_monitor_preserves_exit_status(self):
         with subprocess.Popen([sys.executable, '-c', 'raise SystemExit(7)']) as child:
