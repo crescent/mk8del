@@ -1,6 +1,10 @@
 # Estado técnico — 12/11/2026
 
-## Compilação em dois níveis: funções frias sem otimização (12/11/2026, fontes locais, sem release)
+## Release 0.1.11 — compilação em dois níveis (12/11/2026)
+
+Versões Cargo/Tauri/lock em 0.1.11. Publicada no fork `crescent/mk8del` como Latest: https://github.com/crescent/mk8del/releases/tag/v0.1.11. Instalador `MK8-online-0.1.11-setup.exe`, SHA-256 `3e89abf2b014ca183b504aaadbcb1d10912fe7dc310eb4c40a9aab3f46452853`, com `.sha256` e fontes/script FFmpeg; o `digest` do GitHub confere. Atualização aponta para `crescent/mk8del`; o executável não contém caminhos pessoais. `cargo fmt`, Clippy e testes Rust passaram; testes Python de `native`, `native_cache`, `pipeline` e `race_script` passaram. Instalação silenciosa e testes de navegador não foram repetidos (o launcher só mudou de versão; a instalação silenciosa trocaria o registro de desinstalação da instalação em uso). O conteúdo está na seção abaixo.
+
+## Compilação em dois níveis: funções frias sem otimização (12/11/2026)
 
 O código do jogo era compilado inteiro em `-O1`. Metade do tempo vinha de 46 das 484 unidades, quase todas com uma única função gigante: `main_019` levava 80 s sozinha em `-O1` e 1,4 s com `optnone`. O `-O0` puro foi descartado, porque gera informação de depuração e objetos 10 a 20 vezes maiores. O `gen.py` do upstream já marca com `__attribute__((optnone, noinline))` as funções de switch enormes.
 
