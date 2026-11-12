@@ -6,6 +6,8 @@ Legenda: **[bloqueia]** impede o uso normal · **[visível]** atrapalha, mas dá
 
 Preparação 0.1.7: Python 3.12 x64 privado baixado automaticamente, com reparo de ambientes incompatíveis/incompletos e backup. Resta acompanhar instalações em outras máquinas; detalhes em STATUS.md.
 
+Versão 0.1.11 (testes, fork crescent/mk8del): compilação em dois níveis (funções frias sem otimização), compilação nativa ~2× mais rápida.
+
 Versão 0.1.10 (testes, fork crescent/mk8del): correção do + na seleção de personagens (applet de controles).
 
 Versão 0.1.9 (testes, fork crescent/mk8del): aba Perfil, teclas/botões e vídeo no launcher, importação de save e correção do save que não persistia. Gameplay continua não qualificado.
