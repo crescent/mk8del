@@ -145,8 +145,44 @@ def compile_priority(source):
     return (longest if longest >= 128 * 1024 else 0), size
 
 
+# A generated function definition (gen.py writes one per line, CRLF on Windows; already-marked ones carry a prefix).
+DEFINITION = re.compile(rb'^void f_([0-9a-f]+)\(Cpu \*c\) \{\r?$', re.M)
+COLD = b'__attribute__((optnone, noinline)) '
+
+
+def load_hot_functions(path, generated, modules):
+    """Profiled guest functions to optimise, or None (optimise all) unless recorded from these exact module inputs."""
+    recorded, hot = {}, set()
+    for line in Path(path).read_text(encoding='utf-8').splitlines():
+        if line.startswith('# input '):
+            _, _, name, value = line.split()
+            recorded[name] = value
+        elif line and not line.startswith('#'):
+            hot.add(int(line, 16))
+    built = json.loads((Path(generated)/'MODULES.json').read_text(encoding='utf-8'))
+    if not hot or set(recorded) != set(modules) or any(built[name]['sha256'] != recorded[name] for name in modules):
+        print('Lista de funções quentes de outros módulos: compilando todas as funções otimizadas.', flush=True)
+        return None
+    return frozenset(hot)
+
+
+def mark_cold(src, target, hot):
+    """Unit copy where functions outside `hot` get optnone: clang skips optimising them (the giant ones take minutes)."""
+    text = src.read_bytes()
+    marked = DEFINITION.sub(lambda m: m[0] if int(m[1], 16) in hot else COLD + m[0], text)
+    if marked == text:
+        return src
+    if not target.is_file() or target.read_bytes() != marked:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        pending = target.with_suffix('.pending')
+        pending.write_bytes(marked)
+        pending.replace(target)
+    return target
+
+
 def compile_modules(source, generated, output, modules, compiler=DEFAULT_COMPILER, optimization='-O0', workers=None,
-                    cache=DEFAULT_OBJECT_CACHE):
+                    cache=DEFAULT_OBJECT_CACHE, hot_functions=None):
+    """hot_functions: optional profile list (load_hot_functions); other functions are compiled without optimisation."""
     source, generated, output = map(compiler_path, (source, generated, output))
     if optimization not in ('-O0', '-O1', '-O2'):
         raise ValueError('Invalid native optimization level')
@@ -180,6 +216,7 @@ def compile_modules(source, generated, output, modules, compiler=DEFAULT_COMPILE
             code, table = extra
             entries = [(table if src == generated/'sdk/sdk_table.c' else src, obj) for src, obj in entries]
             entries.append((code, output/'sdk/sdk_assembly.o'))
+    hot = load_hot_functions(hot_functions, generated, modules) if hot_functions and optimization != '-O0' else None
     env = compiler_env()
     cache = Path(cache)
     # Builds live in <local>/builds/<identity>/<native folder>; earlier ones seed the shared cache.
@@ -190,8 +227,11 @@ def compile_modules(source, generated, output, modules, compiler=DEFAULT_COMPILE
 
     def compile_one(pair):
         src, obj = pair
+        module = src.parent.name
         from experimental import patch_no_mii_unit
         src = patch_no_mii_unit(src, output)
+        if hot is not None:
+            src = mark_cold(src, output/'tiered'/module/src.name, hot)
         obj.parent.mkdir(parents=True, exist_ok=True)
         stamp = obj.with_suffix('.json')
         key = {'source': digest(src), 'environment': identity, 'flags': flags}
@@ -245,7 +285,8 @@ def compile_modules(source, generated, output, modules, compiler=DEFAULT_COMPILE
     pending.replace(archive)
     receipt = {'state': 'native_objects', 'archive': str(archive), 'sha256': digest(archive),
                'object_files': [{'path': str(p), 'sha256': digest(p)} for p in objects],
-               'modules': list(modules), 'objects': len(objects), 'optimization': optimization, 'gameplay_verified': False,
+               'modules': list(modules), 'objects': len(objects), 'optimization': optimization,
+               'hot_functions': len(hot) if hot is not None else None, 'gameplay_verified': False,
                'remaining': ['link with native graphics and platform runtime', 'boot and race qualification']}
     (output/'native-receipt.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
     return receipt

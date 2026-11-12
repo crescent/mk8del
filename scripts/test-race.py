@@ -69,6 +69,8 @@ def wait_capture(child, timeout, log):
 def run(args):
     if shutil.disk_usage(LOCAL).free < 4 * 1024**3:
         raise SystemExit('Race capture requires at least 4 GiB free on the local drive')
+    # Saves, settings and the Mii profile come from the candidate's own data folder.
+    origin = args.candidate.resolve().parent if args.candidate else LOCAL
     candidate = json.loads((args.candidate or LOCAL / 'candidate.json').read_text(encoding='utf-8'))
     for entry in [candidate['executable'], *candidate['files'].values()]:
         path = Path(entry['path'])
@@ -80,7 +82,7 @@ def run(args):
     session = Path(tempfile.mkdtemp(prefix=f'race-{args.mode}-', dir=LOCAL))
     print(f'Test output: {session}', flush=True)
     data = session / 'data'
-    source = LOCAL / 'user-no-mii'
+    source = origin / 'user-no-mii'
     shutil.copytree(source / 'save', data / 'save')
     ini = (source / 'mk8d.ini').read_text(encoding='utf-8')
     ini = re.sub(r'^frame_gen\s*=.*$', 'frame_gen = off', ini, flags=re.M)
@@ -88,7 +90,7 @@ def run(args):
     if args.cache_from:
         shutil.copytree(args.cache_from, data / 'cache')
     profile = session / 'mii-profile.json'
-    shutil.copyfile(LOCAL / 'mii-profile.json', profile)
+    shutil.copyfile(origin / 'mii-profile.json', profile)
 
     script = race_input(args.mode, args.last_frame, args.course, CUPS.index(args.cup), args.track)
     env = {key: value for key, value in os.environ.items()

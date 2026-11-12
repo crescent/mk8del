@@ -26,6 +26,8 @@ Referência operacional do multiplayer: [Nintendo — How to Use the LAN Play Fe
 
 Direção futura solicitada pelo mantenedor: [Nextendo Network](https://nextendo.network/), consultada em 08/11/2026. O site apresenta serviços independentes de contas, amigos e matchmaking para suas integrações com Ryujinx, Citron e Switch com CFW. Não há código ou integração Nextendo nesta build MK8-online, nem validação de compatibilidade com seu runtime nativo ou afiliação entre os projetos. A avaliação está no roteiro; os resultados divulgados pelo serviço não qualificam este projeto.
 
+Ideia da compilação em dois níveis (12/11/2026): [Racing 8 DX Recomp](https://github.com/galarianpikachu2021-hue/Racing-8-DX-Recomp), `c2b9f30`, GPL-3.0, cujo `docs/PIPELINE.md` mede blocos quentes em `-O2` e o resto em `-O0`. Nenhum código, lista de endereços ou medição desse projeto foi copiado: a lista `games/mk8d/profiles/4.0.1-hot-functions.txt` vem do `LARECOMP_FNPROF` do nosso runtime e os tempos estão em `STATUS.md`.
+
 Referência de metodologia solicitada pelo usuário: [Co-op Anything](https://github.com/cranebeaker/coop-anything), consultada em 07/11/2026, especialmente [falhas de rede](https://github.com/cranebeaker/coop-anything/blob/main/playbook/network-chaos-testing.md), [diagnóstico de dessincronização](https://github.com/cranebeaker/coop-anything/blob/main/playbook/desync-hunting.md) e [instâncias isoladas](https://github.com/cranebeaker/coop-anything/blob/main/playbook/multi-instance-testing.md). Útil para ampliar os testes da ponte LAN existente. Nenhum código, MCP ou relay Steam desse projeto foi incorporado; seus resultados em outros jogos não são evidência para MK8.
 
 ## Vulkan Loader distribuído com o runtime

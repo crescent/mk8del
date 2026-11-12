@@ -148,6 +148,8 @@ def build(config, local):
         raise ValueError("Preparação bloqueada:\n- " + "\n- ".join(errors))
     profile_path = select_profile(config)
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    # Optional profile of the game's hot functions; the rest compile without optimisation (toolchain/native.py).
+    hot_list = profile_path.with_name(profile_path.stem + "-hot-functions.txt")
     upstream = Path(config.get("upstream") or ROOT / "upstream/smm2recomp").resolve()
     inputs = {name: sha(Path(config["exefs"]) / name) for name in (*profile["modules"], "main.npdm")}
     inputs["profile"] = sha(profile_path)
@@ -192,7 +194,8 @@ def build(config, local):
         if host.done():
             host.result()
         result = compile_modules(prepared, job / "generated", job / "native-optimized", profile["modules"],
-                                 optimization='-O1', cache=local / "native-tools/objects")
+                                 optimization='-O1', cache=local / "native-tools/objects",
+                                 hot_functions=hot_list if hot_list.is_file() else None)
         result["identity"] = identity
         atomic_json(local / "native.json", result)
         native_at = time.perf_counter()
