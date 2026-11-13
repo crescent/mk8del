@@ -309,6 +309,14 @@ def prepare_host_sources(source, output):
                 kernel_dump_threads();
             }''')
     kernel.write_text(text, encoding='utf-8')
+    # mk8d.ini values end at '\r' too: a file saved with CRLF gave "75%\r", which the parser reads as atoi(75) -> 4x
+    # (render targets at 7680x4320 and the GPU out of memory at the race start), and "off\r" as SMAA on.
+    settings = runtime/'settings.c'
+    text = settings.read_text(encoding='utf-8')
+    line_format = '" %63[^= ] = %127[^\\n]"'
+    if text.count(line_format) != 2:
+        raise ValueError('Settings line format changed')
+    settings.write_text(text.replace(line_format, '" %63[^= ] = %127[^\\r\\n]"'), encoding='utf-8')
     windows = runtime/'platform/windows.c'
     text = windows.read_text(encoding='utf-8')
     boundary = 'static LONG CALLBACK vectored_handler(EXCEPTION_POINTERS *ep) {\n    EXCEPTION_RECORD *er = ep->ExceptionRecord;\n'

@@ -81,7 +81,7 @@ Já conferido no código, fora do plano: o despacho de funções (`runtime/dispa
 ### Fase C — desempenho
 
 7. **Tela dividida a 60 FPS.** Depende da correção dos controles na seleção para 2 jogadores (seção 1). Conferir e desmontar a instrução em `main+0xafece8` no nosso `main`, aplicar pelo item 6 como opção desligada por padrão e medir 2–4 jogadores. A velocidade do jogo tem de continuar correta.
-8. **Bloqueado — predefinição Notebook.** A verificação prévia falhou: qualquer `resolution` abaixo de `match` (75%, 50%) derruba o MK8 no início da corrida por falta de VRAM (`VK_ERROR_OUT_OF_DEVICE_MEMORY`), e desligar o SMAA não mudou o tempo de GPU. Antes da predefinição: corrigir a alocação das render targets em escala reduzida e entender por que `antialias`/`upscaler` do `mk8d.ini` não aparecem no pós-processamento. Detalhes em STATUS.md.
+8. Feito: a aba Configurações tem "Resolução interna" (Igual à tela, 75%, 50%), "Suavização (SMAA)" e o botão "Predefinição Notebook" (75%, FSR 1, SMAA desligado). O bloqueio anterior era do roteiro de teste, que gravava o `mk8d.ini` com CRLF; o runtime agora também aceita CRLF. Medições em STATUS.md.
 9. VRAM entre pistas e picos de shader continuam na seção 3; não duplicar aqui.
 
 ### Fase D — launcher e UX

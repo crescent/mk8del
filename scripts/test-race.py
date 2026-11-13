@@ -149,7 +149,8 @@ def run(args):
         line = f'{key} = {value}'
         ini, found = re.subn(rf'^{re.escape(key)}\s*=.*$', line, ini, flags=re.M)
         ini += '' if found else f'\n{line}\n'
-    (data / 'mk8d.ini').write_text(ini, encoding='utf-8')
+    # LF only: the runtime reads a value up to '\n', so a CRLF file gave "75%\r" (read as 4x) and "off\r" (SMAA).
+    (data / 'mk8d.ini').write_text(ini, encoding='utf-8', newline='\n')
     if args.cache_from:
         shutil.copytree(args.cache_from, data / 'cache')
     profile = session / 'mii-profile.json'

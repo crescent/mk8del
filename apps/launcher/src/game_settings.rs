@@ -94,10 +94,15 @@ pub const DEFAULT_PAD: [&str; 16] = [
     "dpad_right",
     "dpad_down",
 ];
-const VIDEO: [(&str, &[&str]); 3] = [
+/// The first value is the runtime's own default (what an absent line means). Resolutions below 50% and the
+/// multiples of 1080p stay in the in-game menu only: not measured on MK8.
+const VIDEO: [(&str, &[&str]); 6] = [
     ("frame_gen", &["off", "120"]),
     ("fullscreen", &["0", "1"]),
     ("show_fps", &["0", "1"]),
+    ("resolution", &["match", "75%", "50%"]),
+    ("antialias", &["off", "smaa"]),
+    ("upscaler", &["fsr1", "bilinear"]),
 ];
 
 pub fn path(local: &Path) -> PathBuf {
@@ -368,6 +373,8 @@ mod tests {
         for (key, value) in [
             ("volume", "1"),
             ("frame_gen", "999"),
+            ("resolution", "25%"),
+            ("antialias", "fxaa"),
             ("bind_key_a", "A\nfullscreen = 1"),
             ("bind_pad_ls_up", "south"),
         ] {
@@ -379,6 +386,7 @@ mod tests {
         assert_eq!(controls(&local)["keys"]["a"], "Left Shift");
         assert_eq!(controls(&local)["keys"]["b"], "Z");
         assert_eq!(video(&local)["fullscreen"], "0");
+        assert_eq!(video(&local)["resolution"], "match");
         reset_controls(&local).unwrap();
         assert_eq!(controls(&local)["keys"]["a"], "X");
         assert_eq!(read(&local)["volume"], "0.80");

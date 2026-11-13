@@ -293,6 +293,14 @@
             <p class="hint">Cria um quadro intermediário entre cada par de quadros reais. Precisa de uma tela de 100 Hz ou mais; o jogo continua rodando a 60. Experimental no MK8.</p>
             <label class="check"><input type="checkbox" id="video-fullscreen" />Tela cheia</label>
             <label class="check"><input type="checkbox" id="video-show_fps" />Mostrar FPS</label>
+            <div class="row">
+              <label>Resolução interna <select id="video-resolution"><option value="match">Igual à tela</option><option value="75%">75%</option><option value="50%">50%</option></select></label>
+              <label>Suavização (SMAA) <select id="video-antialias"><option value="smaa">Ligada</option><option value="off">Desligada</option></select></label>
+            </div>
+            <div class="row">
+              <button type="button" id="video-laptop" class="ghost">Predefinição Notebook</button>
+            </div>
+            <p class="hint">Notebook: resolução 75% com FSR 1 e SMAA desligado. No PC de teste (saída 2560×1440), um GP passou de 9,0 para 6,8 ms de GPU por quadro (50%: 4,8 ms), sempre a 60 FPS. Abaixo de "Igual à tela" a imagem fica mais suave.</p>
           </div>
           <div class="card">
             <h2>Controles</h2>

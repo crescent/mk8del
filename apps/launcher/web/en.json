@@ -512,5 +512,12 @@
   "A build nova não chegou à tela-título ({0}); candidato não publicado. Log: {1}": "The new build did not reach the title screen ({0}); it was not published. Log: {1}",
   "Preparação bloqueada:\n{0}": "Preparation blocked:\n{0}",
   "Nenhuma build pronta. Prepare o jogo no Launcher.": "No build is ready. Prepare the game in the launcher.",
-  "O jogo fechou com erro. O relatório para enviar está em Suporte.": "The game closed with an error. The report to send is under Support."
+  "O jogo fechou com erro. O relatório para enviar está em Suporte.": "The game closed with an error. The report to send is under Support.",
+  "Resolução interna": "Internal resolution",
+  "Igual à tela": "Match display",
+  "Suavização (SMAA)": "Anti-aliasing (SMAA)",
+  "Ligada": "On",
+  "Desligada": "Off",
+  "Predefinição Notebook": "Laptop preset",
+  "Notebook: resolução 75% com FSR 1 e SMAA desligado. No PC de teste (saída 2560×1440), um GP passou de 9,0 para 6,8 ms de GPU por quadro (50%: 4,8 ms), sempre a 60 FPS. Abaixo de \"Igual à tela\" a imagem fica mais suave.": "Laptop: 75% resolution with FSR 1 and SMAA off. On the test PC (2560×1440 output), a Grand Prix went from 9.0 to 6.8 ms of GPU time per frame (50%: 4.8 ms), at 60 FPS throughout. Below \"Match display\" the image is softer."
 }

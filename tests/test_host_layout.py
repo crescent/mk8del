@@ -50,6 +50,32 @@ int main(void) {
                             str(program), '-o', str(exe)], env=env, check=True)
             subprocess.run([str(exe)], check=True, timeout=20)
 
+    def test_settings_values_end_before_a_carriage_return(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            runtime = prepare_host_sources(ROOT/'upstream/smm2recomp/recomp', output)
+            settings = (runtime/'settings.c').read_text(encoding='utf-8')
+            line_format = settings[settings.index('sscanf(line, "') + len('sscanf(line, '):settings.index(', key, val)')]
+            program = output/'settings-line.c'
+            program.write_text('''#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+int main(void) {
+    const char *lines[] = {"resolution = 75%\\r\\n", "antialias = off\\n", "rando_seed = \\r\\n"};
+    const char *keys[] = {"resolution", "antialias", "rando_seed"}, *vals[] = {"75%", "off", ""};
+    for (int i = 0; i < 3; i++) {
+        char key[64] = "", val[128] = "";
+        int n = sscanf(lines[i], ''' + line_format + ''', key, val);
+        assert(n >= 1 && !strcmp(key, keys[i]) && !strcmp(val, vals[i]));
+    }
+}
+''', encoding='utf-8')
+            exe = output/'settings-line.exe'
+            env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', '-UNDEBUG',
+                            str(program), '-o', str(exe)], env=env, check=True)
+            subprocess.run([str(exe)], check=True, timeout=20)
+
     def test_map_memory_backs_destination_before_copying(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder)

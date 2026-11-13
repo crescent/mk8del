@@ -557,9 +557,21 @@ function renderControls(controls) {
     return row;
   }));
 }
+const videoChoices = ["resolution", "antialias"];
+videoChoices.forEach((key) => {
+  for (const option of $("video-" + key).options) i18n.text(option, option.textContent);  // (options: not in the page walk)
+  $("video-" + key).onchange = (event) => action(() => api("settings", { changes: { [key]: event.target.value } })).then(loadSettings);
+});
+$("video-laptop").onclick = () =>
+  action(() => api("settings", { changes: { resolution: "75%", antialias: "off", upscaler: "fsr1" } })).then(loadSettings);
 async function loadSettings() {
   const settings = await api("settings");
   for (const [key, [, on]] of Object.entries(videoKeys)) $("video-" + key).checked = settings.video[key] === on;
+  for (const key of videoChoices) {
+    const select = $("video-" + key), value = settings.video[key];
+    if (![...select.options].some((option) => option.value === value)) select.add(new Option(value, value));  // (set in the game's menu)
+    select.value = value;
+  }
   renderControls(settings.controls);
 }
 $("controls-reset").onclick = () =>
