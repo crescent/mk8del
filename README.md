@@ -13,7 +13,7 @@
 ![Platform](https://img.shields.io/badge/Windows-x64-0078D6)
 ![Graphics](https://img.shields.io/badge/Graphics-Vulkan-AC162C)
 ![Stack](https://img.shields.io/badge/Rust-C%2FC%2B%2B-555555)
-![Release base](https://img.shields.io/badge/Release_base-0.1.11-ef795d)
+![Release base](https://img.shields.io/badge/Release_base-0.1.12-ef795d)
 ![Status](https://img.shields.io/badge/Status-Experimental-e6a23c)
 [![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue)](LICENSE)
 
@@ -28,7 +28,7 @@ with a native launcher, a Vulkan runtime and multiplayer rooms under development
 > Bring your own game files and console keys. This repository and its releases do not include ROMs, game assets, keys, saves or recompiled game code. The game is compiled locally from your own files.
 
 > [!NOTE]
-> **Open for testing, still experimental.** Races have completed in local tests, but visual defects, first-use shader stutters and growing VRAM usage remain. Multiplayer between separate PCs is not yet qualified. The 0.1.11 test installer roughly halves native compile time in **Build**; 0.1.10 fixed character select ignoring the controller after pressing +; 0.1.9 added a Profile tab, launcher key/controller bindings, frame generation, save import and a fix for saves that did not persist.
+> **Open for testing, still experimental.** Races have completed in local tests, but visual defects, first-use shader stutters and growing VRAM usage remain. Multiplayer between separate PCs is not yet qualified. The 0.1.12 test installer adds a laptop video preset, a direct `--play` launch and clearer preparation errors; 0.1.11 roughly halved native compile time in **Build**; 0.1.10 fixed character select ignoring the controller after pressing +; 0.1.9 added a Profile tab, launcher key/controller bindings, frame generation, save import and a fix for saves that did not persist.
 
 ## On the starting grid
 
@@ -60,6 +60,8 @@ RatOne develops and maintains the MK8 adaptation, launcher and integration. The 
 - Internet for the initial tool download (about 0.4 GiB installed, before build caches) and updates. Tools are shared across launcher versions.
 
 Tools downloads a pinned CPython package, verifies SHA-256 and creates its local environment without changing system Python or PATH. Incompatible or incomplete environments are preserved in `local/python-backup-*` and recreated automatically. Available in 0.1.7; users of 0.1.6 can update through Support before retrying Tools.
+
+Included in the 0.1.12 test release: Settings → Video adds **Internal resolution** (match display, 75%, 50%), **Anti-aliasing (SMAA)** and a **Laptop preset** (75%, FSR 1, SMAA off); on the test PC a Grand Prix went from 9.0 to 6.8 ms of GPU time per frame with it, still at 60 FPS. `Launcher.exe --play` starts the prepared game without the launcher window and only opens the window if the game cannot start or crashes. Preparation now names the problem before the long import (an XCI/XCZ file, another game, DLC, another update version, the same file twice, or prod.keys missing the needed keys) and the launcher shows that reason instead of a generic failure; base and update chosen in each other's field are accepted. **Build** checks that the new game reaches the title screen before using it, recompiles less after runtime changes, and native compilation with an empty cache takes about 137 s on the test PC (166 s in 0.1.11). A settings file saved with Windows line endings no longer turns 75% into 4x. Run **Build** again after updating.
 
 Included in the 0.1.11 test release: **Build** compiles the game functions that never ran in profiled races without optimisation, so native compilation takes about half as long (383 s to 166 s on the test PC with an empty cache). Races measured the same (60 FPS); functions outside the profile are only slower, not different. Run **Build** again after updating.
 
