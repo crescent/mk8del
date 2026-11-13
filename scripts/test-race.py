@@ -145,6 +145,10 @@ def run(args):
     shutil.copytree(source / 'save', data / 'save')
     ini = (source / 'mk8d.ini').read_text(encoding='utf-8')
     ini = re.sub(r'^frame_gen\s*=.*$', 'frame_gen = off', ini, flags=re.M)
+    for key, value in args.setting:  # (mk8d.ini lines for this run: resolution, antialias...)
+        line = f'{key} = {value}'
+        ini, found = re.subn(rf'^{re.escape(key)}\s*=.*$', line, ini, flags=re.M)
+        ini += '' if found else f'\n{line}\n'
     (data / 'mk8d.ini').write_text(ini, encoding='utf-8')
     if args.cache_from:
         shutil.copytree(args.cache_from, data / 'cache')
@@ -173,6 +177,7 @@ def run(args):
     (session / 'run.json').write_text(json.dumps({
         'candidate': candidate['identity'], 'mode': args.mode, 'options': args.env,
         'course': args.course, 'cup': args.cup, 'track': args.track, 'character_picker': args.character_picker,
+        'settings': args.setting,
         'input': env['LARECOMP_INPUT'], 'last_frame': args.last_frame,
         'cache_from': str(args.cache_from.resolve()) if args.cache_from else None,
     }, indent=2), encoding='utf-8')
@@ -225,11 +230,13 @@ if __name__ == '__main__':
     parser.add_argument('--fnprof', action='store_true',
                         help='Profile the functions entered and add them to the hot list (games/mk8d/profiles)')
     parser.add_argument('--env', action='append', default=[], type=lambda x: x.split('=', 1))
+    parser.add_argument('--setting', action='append', default=[], type=lambda x: x.split('=', 1),
+                        help='mk8d.ini KEY=VALUE for this run only (e.g. resolution=75%%)')
     parser.add_argument('--candidate', type=Path, help='candidate.json of another data folder (e.g. a fresh build)')
     args = parser.parse_args()
     if args.mode != 'time-trial' and (args.course != 'stadium' or args.cup != 'mushroom' or args.track is not None):
         parser.error('--course, --cup and --track require time-trial')
     if (args.shots < 1 or args.shot_step < 1 or args.last_frame <= args.shot_step * (args.shots - 1)
-            or any(len(pair) != 2 for pair in args.env)):
+            or any(len(pair) != 2 for pair in args.env + args.setting)):
         parser.error('Require positive capture frames, capture count and step, and --env NAME=VALUE')
     run(args)

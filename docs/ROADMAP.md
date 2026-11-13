@@ -81,7 +81,7 @@ Já conferido no código, fora do plano: o despacho de funções (`runtime/dispa
 ### Fase C — desempenho
 
 7. **Tela dividida a 60 FPS.** Depende da correção dos controles na seleção para 2 jogadores (seção 1). Conferir e desmontar a instrução em `main+0xafece8` no nosso `main`, aplicar pelo item 6 como opção desligada por padrão e medir 2–4 jogadores. A velocidade do jogo tem de continuar correta.
-8. **Predefinição Notebook.** O runtime já lê `resolution`, `upscaler` (FSR 1) e `antialias`, mas o launcher só expõe `frame_gen`, `fullscreen` e `show_fps` (`VIDEO` em `apps/launcher/src/game_settings.rs`). Expor as três chaves e um botão que aplica `resolution = 75%`, `upscaler = fsr1` e `antialias = off`. Antes, confirmar que cada chave muda o caminho Vulkan do MK8. Medir quadro e VRAM em cada valor.
+8. **Bloqueado — predefinição Notebook.** A verificação prévia falhou: qualquer `resolution` abaixo de `match` (75%, 50%) derruba o MK8 no início da corrida por falta de VRAM (`VK_ERROR_OUT_OF_DEVICE_MEMORY`), e desligar o SMAA não mudou o tempo de GPU. Antes da predefinição: corrigir a alocação das render targets em escala reduzida e entender por que `antialias`/`upscaler` do `mk8d.ini` não aparecem no pós-processamento. Detalhes em STATUS.md.
 9. VRAM entre pistas e picos de shader continuam na seção 3; não duplicar aqui.
 
 ### Fase D — launcher e UX
