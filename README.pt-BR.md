@@ -39,7 +39,7 @@ com launcher nativo, runtime Vulkan e salas multijogador em desenvolvimento.
 | Desempenho | Cerca de 60 FPS nos trechos medidos no PC de teste | Repetir copas, estabilizar VRAM e testar mais hardware |
 | LAN / códigos de sala | Dois jogos correram no mesmo PC; transporte testado com 12 clientes | Dois PCs reais, relay na internet e mais de quatro jogadores reais |
 | Tela dividida | Em investigação | Corrigir entrada na seleção de personagens para dois jogadores |
-| Nextendo | Investigação prevista | Avaliar integração com este runtime nativo |
+| Nextendo | Experimental, não testado | O menu do jogo (F1 → Online) entra na conta e escolhe a Nextendo; corridas online por ela não foram testadas |
 
 São marcos observados, sem estimativa artificial de porcentagem concluída. `gameplay_verified` permanece `false` até passar pela qualificação completa. Evidências e limitações: [estado técnico](docs/STATUS.md) e [roteiro](docs/ROADMAP.md).
 
@@ -142,9 +142,9 @@ O daemon admite até 16 salas, cada uma com anfitrião e até 11 convidados. Ela
 
 </details>
 
-### Nextendo: uma direção futura
+### Nextendo (experimental)
 
-Investigar a **[Nextendo Network](https://nextendo.network/)** está no roteiro para oferecer uma alternativa de serviço online. **Esta build ainda não integra Nextendo.** Contas, amigos e matchmaking exigiriam trabalho de compatibilidade e validação neste runtime nativo. É uma intenção de desenvolvimento, sem data anunciada ou vínculo presumido; não substitui o caminho LAN/relay atual.
+A **[Nextendo Network](https://nextendo.network/)** lista o Mario Kart 8 Deluxe como totalmente online. O runtime compartilhado com o SMM2Recomp tem um backend Nextendo: no jogo, abra o menu (F1 ou Esc) → Online, entre na conta, escolha Nextendo e reinicie o jogo. **É experimental e não foi testado com esta build:** só a gravação da escolha foi conferida, não login, salas ou corridas. Não há vínculo entre os projetos, e isso não substitui o caminho LAN/relay.
 
 ## Desempenho, com contexto
 

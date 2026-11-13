@@ -30,14 +30,54 @@ pub fn run() -> Result<i32> {
     } else {
         mk8_installer::launch
     };
-    let mut game = launch(
-        &request.install,
-        &request.local,
-        request.network,
-        &request.username,
-    )?;
-    // Once the game exists, a closed UI pipe must not kill it or release its locks.
-    let _ = supervisor::ready();
-    let exit = game.wait().map_err(|e| e.to_string())?;
-    Ok(exit.code().unwrap_or(1))
+    let mut ready = false;
+    run_game(|| {
+        let game = launch(
+            &request.install,
+            &request.local,
+            request.network.clone(),
+            &request.username,
+        )?;
+        // Once the game exists, a closed UI pipe must not kill it or release its locks.
+        if !std::mem::replace(&mut ready, true) {
+            let _ = supervisor::ready();
+        }
+        Ok(game)
+    })
+}
+
+/// The runtime's exit code for the in-game "Restart the game" (toolchain/host.py `RESTART_EXIT`): MK8 does
+/// not survive the upstream reboot inside one process, so it exits and is started again here, with the same
+/// locks and network settings.
+const RESTART_EXIT: i32 = 0x4D4B;
+
+fn run_game(mut launch: impl FnMut() -> Result<Child>) -> Result<i32> {
+    loop {
+        let exit = launch()?.wait().map_err(|e| e.to_string())?;
+        if exit.code() != Some(RESTART_EXIT) {
+            return Ok(exit.code().unwrap_or(1));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+
+    #[test]
+    fn a_restart_exit_starts_the_game_again() {
+        let mut codes = vec![3, RESTART_EXIT, RESTART_EXIT].into_iter().rev();
+        let mut starts = 0;
+        let code = run_game(|| {
+            starts += 1;
+            let code = codes.next().unwrap();
+            Command::new("cmd")
+                .args(["/C", &format!("exit {code}")])
+                .spawn()
+                .map_err(|e| e.to_string())
+        })
+        .unwrap();
+        assert_eq!((code, starts), (3, 3));
+    }
 }

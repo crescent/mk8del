@@ -467,7 +467,11 @@ $("mii-form").onsubmit = (event) => {
 };
 
 /* ---------- Configurações: vídeo e controles ---------- */
-const videoKeys = { frame_gen: ["off", "120"], fullscreen: ["0", "1"], show_fps: ["0", "1"] };
+// checkboxes: mk8d.ini key -> [off, on] (the in-game menu's settings that MK8 uses: game_settings.rs VIDEO)
+const videoKeys = {
+  frame_gen: ["off", "120"], fullscreen: ["0", "1"], show_fps: ["0", "1"], show_memory: ["0", "1"], ahead_fast: ["0", "1"],
+  reverb: ["0", "1"], movie_audio: ["0", "1"], mute_in_background: ["0", "1"], pads_from_p2: ["0", "1"],
+};
 Object.entries(videoKeys).forEach(([key, [off, on]]) => {
   $("video-" + key).onchange = (event) =>
     action(() => api("settings", { changes: { [key]: event.target.checked ? on : off } })).then(loadSettings);
@@ -557,11 +561,16 @@ function renderControls(controls) {
     return row;
   }));
 }
-const videoChoices = ["resolution", "antialias"];
+const videoChoices = ["resolution", "antialias", "upscaler", "theme", "language"];
 videoChoices.forEach((key) => {
   for (const option of $("video-" + key).options) i18n.text(option, option.textContent);  // (options: not in the page walk)
   $("video-" + key).onchange = (event) => action(() => api("settings", { changes: { [key]: event.target.value } })).then(loadSettings);
 });
+// the menu's slider: 0-200% in steps of 5, written as "%.2f"
+const volumeLabel = () => ($("video-volume-value").textContent = $("video-volume").value + "%");
+$("video-volume").oninput = volumeLabel;
+$("video-volume").onchange = (event) =>
+  action(() => api("settings", { changes: { volume: (event.target.value / 100).toFixed(2) } })).then(loadSettings);
 $("video-laptop").onclick = () =>
   action(() => api("settings", { changes: { resolution: "75%", antialias: "off", upscaler: "fsr1" } })).then(loadSettings);
 async function loadSettings() {
@@ -572,6 +581,8 @@ async function loadSettings() {
     if (![...select.options].some((option) => option.value === value)) select.add(new Option(value, value));  // (set in the game's menu)
     select.value = value;
   }
+  $("video-volume").value = Math.round(Number(settings.video.volume) * 100);
+  volumeLabel();
   renderControls(settings.controls);
 }
 $("controls-reset").onclick = () =>

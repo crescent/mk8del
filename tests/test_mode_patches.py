@@ -16,7 +16,8 @@ class ModePatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             runtime = prepare_host_sources(ROOT/'upstream/smm2recomp/recomp', Path(folder))
             notice = (runtime/'ui/online_rows.mm').read_text(encoding='utf-8')
-            self.assertIn('join a room in the MK8-online launcher', notice)
+            self.assertIn('join a room in the "\n                 "MK8-online launcher', notice)
+            self.assertIn('choose Nextendo and restart the game', notice)
             self.assertNotIn('sign in to Nextendo Network.", menu);', notice)
             # (the signed-in branches of upstream stay as they are)
             self.assertIn("You're signed in to Nextendo", notice)

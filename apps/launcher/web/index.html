@@ -296,11 +296,38 @@
             <div class="row">
               <label>Resolução interna <select id="video-resolution"><option value="match">Igual à tela</option><option value="75%">75%</option><option value="50%">50%</option></select></label>
               <label>Suavização (SMAA) <select id="video-antialias"><option value="smaa">Ligada</option><option value="off">Desligada</option></select></label>
+              <label>Ampliação <select id="video-upscaler"><option value="fsr1">AMD FSR 1</option><option value="bilinear">Bilinear</option></select></label>
             </div>
+            <p class="hint">Ampliação: como a imagem é esticada até a janela quando a resolução interna é menor que a tela. FSR 1 é mais nítido; não tem efeito em "Igual à tela".</p>
             <div class="row">
               <button type="button" id="video-laptop" class="ghost">Predefinição Notebook</button>
             </div>
             <p class="hint">Notebook: resolução 75% com FSR 1 e SMAA desligado. No PC de teste (saída 2560×1440), um GP passou de 9,0 para 6,8 ms de GPU por quadro (50%: 4,8 ms), sempre a 60 FPS. Abaixo de "Igual à tela" a imagem fica mais suave.</p>
+            <label class="check"><input type="checkbox" id="video-show_memory" />Mostrar uso de memória</label>
+            <label class="check"><input type="checkbox" id="video-ahead_fast" />Preparar shaders em velocidade máxima</label>
+            <p class="hint">Usa todos os núcleos para preparar os shaders mais cedo, mas o jogo pode engasgar enquanto isso. Útil na primeira abertura depois de uma build: espere na tela-título e desligue depois.</p>
+            <div class="row">
+              <label>Tema do menu do jogo <select id="video-theme"><option value="Default">Padrão</option><option value="NES">NES</option></select></label>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Áudio</h2>
+            <div class="row">
+              <label>Volume <input type="range" id="video-volume" min="0" max="200" step="5" /> <span id="video-volume-value"></span></label>
+            </div>
+            <p class="hint">100% é o volume do próprio jogo; acima disso, mais alto.</p>
+            <label class="check"><input type="checkbox" id="video-reverb" />Reverberação</label>
+            <label class="check"><input type="checkbox" id="video-movie_audio" />Som dos vídeos do jogo</label>
+            <label class="check"><input type="checkbox" id="video-mute_in_background" />Silenciar em segundo plano</label>
+          </div>
+          <div class="card">
+            <h2>Jogo</h2>
+            <div class="row">
+              <label>Idioma do sistema <select id="video-language"><option value="auto">Automático (inglês no Windows)</option><option value="ja">Japonês</option><option value="en-US">Inglês</option><option value="es">Espanhol</option><option value="fr">Francês</option><option value="de">Alemão</option><option value="it">Italiano</option><option value="nl">Holandês</option><option value="ru">Russo</option><option value="ko">Coreano</option><option value="zh-CN">Chinês (simplificado)</option><option value="zh-TW">Chinês (tradicional)</option></select></label>
+            </div>
+            <p class="hint">O idioma dos textos do jogo, como a configuração do console.</p>
+            <label class="check"><input type="checkbox" id="video-pads_from_p2" />Controles começam no jogador 2</label>
+            <p class="hint">O teclado fica como jogador 1 e cada controle vira o jogador seguinte, para jogar a dois com teclado e um controle.</p>
           </div>
           <div class="card">
             <h2>Controles</h2>

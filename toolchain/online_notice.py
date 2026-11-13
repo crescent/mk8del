@@ -1,16 +1,16 @@
 """The notice MK8's Online Play shows without a network: how this build plays with others.
 
-Upstream's notice (runtime/ui/online_rows.mm) asks SMM2 players to sign in to its community service (Nextendo
-Network). MK8 4.0.1's Online Play talks to Nintendo's servers, which this build does not reach; races with friends go
-through a room of the MK8-online launcher and the game's own LAN Play. The notice says so instead.
+Upstream's notice (runtime/ui/online_rows.mm) says the game needs its online service even for SMM2's Course Practice.
+For MK8 it names both ways: Nextendo Network (which lists MK8 Deluxe; its backend is kept by
+runtime/mk8/services/net_config.c, untested here) and the launcher's room with the game's own LAN Play.
 """
 
 OLD = '''        snprintf(t, sizeof t, "You're offline. The game needs its online service, even for Course Practice: open %s, "
                  "Online, and sign in to Nextendo Network.", menu);
 '''
-NEW = '''        snprintf(t, sizeof t, "Online Play needs Nintendo's servers, which this build doesn't use (%s has no MK8 service). "
-                 "To race friends: join a room in the MK8-online launcher (Multiplayer), then in Wireless Play hold L + R "
-                 "and press the left stick for LAN Play.", menu);  // MK8 (toolchain/online_notice.py)
+NEW = '''        snprintf(t, sizeof t, "You're offline. Nextendo Network (experimental, not tested with this build): open %s, "
+                 "Online, sign in, choose Nextendo and restart the game. Or race friends over LAN: join a room in the "
+                 "MK8-online launcher, then in Wireless Play hold L + R and press the left stick.", menu);  // MK8 (toolchain/online_notice.py)
 '''
 
 

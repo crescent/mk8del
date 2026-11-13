@@ -12,6 +12,7 @@ import sys
 from native import DEFAULT_COMPILER, ROOT, TOOLS, compiler_env, compiler_path, default_workers, digest
 
 DEPS = TOOLS / 'deps/packages/ucrt64'
+RESTART_EXIT = 0x4D4B  # the in-game restart's exit code (apps/launcher/src/game_session.rs)
 
 
 def prepare_host_sources(source, output):
@@ -317,6 +318,21 @@ def prepare_host_sources(source, output):
     if text.count(line_format) != 2:
         raise ValueError('Settings line format changed')
     settings.write_text(text.replace(line_format, '" %63[^= ] = %127[^\\r\\n]"'), encoding='utf-8')
+    # "Restart the game" (menu, Online backend) rebooted MK8 inside the process and it then crashed (heap corruption
+    # while loading, or a stale object in the Vulkan driver). It now stops the guest threads, as the reboot does, and
+    # exits with RESTART_EXIT; the launcher's game supervisor (apps/launcher/src/game_session.rs) starts it again.
+    main = runtime/'main.c'
+    text = main.read_text(encoding='utf-8')
+    boundary = '        int kind = ui_run();  // window and input on the main thread; returns when a reboot is requested\n'
+    if text.count(boundary) != 1:
+        raise ValueError('Reboot boundary changed')
+    main.write_text(text.replace(boundary, boundary + f'''        if (kind == RT_REBOOT_GAME) {{  // MK8 (toolchain/host.py): a new process, not a reboot in this one
+            kernel_stop_threads(reboot_idle);
+            LOG("[reboot] exiting for the launcher to start the game again\\n");
+            fflush(NULL);
+            _Exit({RESTART_EXIT});
+        }}
+'''), encoding='utf-8')
     windows = runtime/'platform/windows.c'
     text = windows.read_text(encoding='utf-8')
     boundary = 'static LONG CALLBACK vectored_handler(EXCEPTION_POINTERS *ep) {\n    EXCEPTION_RECORD *er = ep->ExceptionRecord;\n'

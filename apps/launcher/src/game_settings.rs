@@ -94,16 +94,37 @@ pub const DEFAULT_PAD: [&str; 16] = [
     "dpad_right",
     "dpad_down",
 ];
-/// The first value is the runtime's own default (what an absent line means). Resolutions below 50% and the
-/// multiples of 1080p stay in the in-game menu only: not measured on MK8.
-const VIDEO: [(&str, &[&str]); 6] = [
+/// The in-game menu's settings that MK8 uses (upstream `runtime/settings.c`); the first value is the
+/// runtime's own default (what an absent line means). Resolutions below 50% and the multiples of 1080p stay
+/// in the in-game menu only: not measured on MK8. Left out: options only other games of the shared runtime
+/// read (skip_intro, prompts, aspect, blur_removal, hide_hero_icon...).
+const VIDEO: [(&str, &[&str]); 15] = [
     ("frame_gen", &["off", "120"]),
     ("fullscreen", &["0", "1"]),
     ("show_fps", &["0", "1"]),
     ("resolution", &["match", "75%", "50%"]),
     ("antialias", &["off", "smaa"]),
     ("upscaler", &["fsr1", "bilinear"]),
+    ("show_memory", &["0", "1"]),
+    ("ahead_fast", &["0", "1"]),
+    ("theme", &["Default", "NES"]),
+    ("volume", &["1.00"]), // (any 0.00–2.00: `volume_ok`)
+    ("reverb", &["1", "0"]),
+    ("movie_audio", &["1", "0"]),
+    ("mute_in_background", &["0", "1"]),
+    (
+        "language",
+        &[
+            "auto", "ja", "en-US", "es", "fr", "de", "it", "nl", "ru", "ko", "zh-CN", "zh-TW",
+        ],
+    ),
+    ("pads_from_p2", &["0", "1"]),
 ];
+
+/// The menu's volume slider: 0–200% in 5% steps, written as `%.2f`.
+fn volume_ok(value: &str) -> bool {
+    value.len() == 4 && value.parse::<f32>().is_ok_and(|v| (0.0..=2.0).contains(&v))
+}
 
 pub fn path(local: &Path) -> PathBuf {
     local.join("user-no-mii").join("mk8d.ini")
@@ -128,6 +149,9 @@ fn allowed(key: &str, value: &str) -> bool {
     }
     if let Some(input) = key.strip_prefix("bind_pad_") {
         return INPUTS[..16].contains(&input) && PAD_BUTTONS.contains(&value);
+    }
+    if key == "volume" {
+        return volume_ok(value);
     }
     VIDEO
         .iter()
@@ -372,6 +396,11 @@ mod tests {
         );
         for (key, value) in [
             ("volume", "1"),
+            ("volume", "2.50"),
+            ("volume", "-0.5"),
+            ("language", "pt-BR"),
+            ("theme", "nes"),
+            ("skip_intro", "1"),
             ("frame_gen", "999"),
             ("resolution", "25%"),
             ("antialias", "fxaa"),
@@ -387,9 +416,16 @@ mod tests {
         assert_eq!(controls(&local)["keys"]["b"], "Z");
         assert_eq!(video(&local)["fullscreen"], "0");
         assert_eq!(video(&local)["resolution"], "match");
+        assert_eq!(video(&local)["reverb"], "1");
+        let mut audio = Map::new();
+        audio.insert("volume".into(), json!("0.85"));
+        audio.insert("language".into(), json!("zh-TW"));
+        write(&local, &audio).unwrap();
+        assert_eq!(video(&local)["volume"], "0.85");
+        assert_eq!(video(&local)["language"], "zh-TW");
         reset_controls(&local).unwrap();
         assert_eq!(controls(&local)["keys"]["a"], "X");
-        assert_eq!(read(&local)["volume"], "0.80");
+        assert_eq!(read(&local)["volume"], "0.85");
         fs::remove_dir_all(local).unwrap();
     }
 

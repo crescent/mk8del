@@ -76,6 +76,36 @@ int main(void) {
                             str(program), '-o', str(exe)], env=env, check=True)
             subprocess.run([str(exe)], check=True, timeout=20)
 
+    def test_network_settings_are_kept_between_starts(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            (output/'mk8net.ini').write_bytes(b'# kept\r\nnet_log = 1\r\nbackend=ours\r\nbackend=local-nex')
+            program = output/'net.c'
+            program.write_text('''#include <assert.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+bool game_net_config(const char *key, char *out, size_t cap);
+void game_net_config_set(const char *key, const char *val);
+int main(void) {
+    char v[64] = "";
+    assert(game_net_config("backend", v, sizeof v) && !strcmp(v, "local-nex"));
+    game_net_config_set("backend", "nextendo");
+    assert(game_net_config("backend", v, sizeof v) && !strcmp(v, "nextendo"));
+    assert(game_net_config("net_log", v, sizeof v) && !strcmp(v, "1"));
+    game_net_config_set("bogus", "1");
+    game_net_config_set("net_hosts", "a=1.2.3.4\\nbackend=ours");
+    assert(!game_net_config("bogus", v, sizeof v) && !game_net_config("net_hosts", v, sizeof v));
+}
+''', encoding='utf-8')
+            exe = output/'net.exe'
+            env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', '-UNDEBUG',
+                            str(program), str(ROOT/'runtime/mk8/services/net_config.c'), '-o', str(exe)],
+                           env=env, check=True)
+            subprocess.run([str(exe)], check=True, timeout=20, cwd=output)
+            self.assertEqual((output/'mk8net.ini').read_bytes(), b'# kept\nnet_log = 1\nbackend=nextendo\n')
+
     def test_map_memory_backs_destination_before_copying(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder)

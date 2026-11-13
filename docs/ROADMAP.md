@@ -18,7 +18,7 @@ Preparação 0.1.8 (testes): recuperação de caches, isolamento Python/pip, coo
 
 ## 1. Multijogador
 
-- **[planejado]** Investigar integração com Nextendo Network para serviços online alternativos: mapear requisitos de conta, autenticação, amigos e matchmaking no runtime nativo antes de implementar. Ainda não integrado, sem prazo ou compatibilidade comprovada. Referência em [THIRD_PARTY.md](THIRD_PARTY.md).
+- **[experimental]** Nextendo Network: o site lista o MK8 Deluxe como "fully online". O backend Nextendo do runtime (conta, token, TLS fixado, redirecionamento dos domínios da Nintendo) é o mesmo do SMM2; faltava ao MK8 guardar a escolha do menu (agora em `mk8net.ini`). Corrida online pela Nextendo ainda não testada; exige validação em duas máquinas como qualquer multijogador. Referência em [THIRD_PARTY.md](THIRD_PARTY.md).
 
 - **[validação]** Um erro de comunicação apareceu uma vez com duas instâncias na mesma máquina (não reproduzido na repetição). Se aparecer entre duas máquinas, testar com `MK8_ASYNC_SUBMIT=0` e enviar os relatórios dos dois PCs.
 
@@ -90,15 +90,15 @@ Já conferido no código, fora do plano: o despacho de funções (`runtime/dispa
 
 10. Feito: antes da importação longa, `toolchain/import_mk8.py` (`check_packages`) identifica cada arquivo pelos cabeçalhos e dá mensagem própria para XCI/XCZ, arquivo que não é NSP/NSZ, outro jogo, DLC, atualização de outra versão, base diferente, base ou atualização repetida, seleção ausente e prod.keys sem `header_key` ou sem as chaves da geração usada. Pacotes nos campos trocados são aceitos. O launcher mostra o motivo da falha em vez do texto genérico, em PT-BR e inglês. Testes em `tests/test_import_mk8.py` e `crates/build-manager`.
 11. Feito: `Launcher.exe --play` inicia o jogo pelo mesmo caminho do botão Jogar (solo), sem abrir a janela. Sem build pronta, com o jogo já aberto ou se o jogo fechar com erro, o launcher abre com a mensagem (e o relatório da falha em Suporte). Fechar o jogo normalmente encerra tudo sem janela. O atalho na área de trabalho com `--play` ficou para depois.
-12. **Mods (uma pasta).** O runtime já aceita `RECOMP_MOD_DIR`, e o upstream tem uma página de mods no menu do jogo (`runtime/ui/mods_page.mm`). Primeiro verificar se ela funciona no Windows. Depois, aba no launcher que lista `data/mods/*/romfs`, ativa uma e passa a variável ao abrir. Combinar vários mods não está planejado.
-13. **Menu dentro do jogo.** O menu ImGui do upstream (`runtime/ui/menu.mm`) já é compilado no Windows (`toolchain/host.py`). Levantar o que ele mostra, esconder opções de outros jogos (vida, rupias e afins), garantir que launcher e menu leiam e gravem o mesmo arquivo de configurações e documentar como abrir. Pronto quando uma mudança no menu persiste e aparece no launcher.
+12. **Em espera (pedido do mantenedor, 12/11/2026).** Mods (uma pasta): o runtime já aceita `RECOMP_MOD_DIR`, e o upstream tem uma página de mods no menu do jogo (`runtime/ui/mods_page.mm`). Primeiro verificar se ela funciona no Windows; depois, aba no launcher que lista `data/mods/*/romfs`.
+13. **Menu dentro do jogo.** Em parte: Configurações do launcher tem as opções do menu (F1 ou Esc) que o MK8 usa, no mesmo `mk8d.ini`; "Reiniciar o jogo" do menu agora reabre o processo pelo launcher. Falta esconder no menu as opções de outros jogos (pular introdução, ícones de botão, proporção, Hero Mode, desfoque e afins) e documentar como abrir.
 14. **Controles por dispositivo.** Começar pela tela de controles do jogo (`runtime/ui/controls_ui.mm`): perfil por GUID SDL e associação apertando o botão. Atribuição automática de 2–4 jogadores só depois da correção da tela dividida.
 
 ### Fora do plano
 
 FSR 3/4, DLSS e HDR (o renderizador é outro; custo alto), DLC, editor de Mii e mais de 60 FPS reais (`frame_gen = 120` já é interpolação). A compilação `-O2` das funções mais quentes só entra se um A/B mostrar a thread do jogo limitada pela CPU.
 
-Ordem sugerida: A → 4, 5 → 10, 11 → 8 → 6, 7 → 12, 13, 14. Nenhum item altera `gameplay_verified`.
+Ordem sugerida: A → 4, 5 → 10, 11 → 8 → 6, 7 → 13, 14 (12 em espera). Nenhum item altera `gameplay_verified`.
 
 ## Como ajudar
 
