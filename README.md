@@ -13,7 +13,7 @@
 ![Platform](https://img.shields.io/badge/Windows-x64-0078D6)
 ![Graphics](https://img.shields.io/badge/Graphics-Vulkan-AC162C)
 ![Stack](https://img.shields.io/badge/Rust-C%2FC%2B%2B-555555)
-![Release base](https://img.shields.io/badge/Release_base-0.1.13-ef795d)
+![Release base](https://img.shields.io/badge/Release_base-0.1.14-ef795d)
 ![Status](https://img.shields.io/badge/Status-Experimental-e6a23c)
 [![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue)](LICENSE)
 
@@ -28,7 +28,7 @@ with a native launcher, a Vulkan runtime and multiplayer rooms under development
 > Bring your own game files and console keys. This repository and its releases do not include ROMs, game assets, keys, saves or recompiled game code. The game is compiled locally from your own files.
 
 > [!NOTE]
-> **Open for testing, still experimental.** Races have completed in local tests, but visual defects, first-use shader stutters and growing VRAM usage remain. Multiplayer between separate PCs is not yet qualified. The 0.1.13 test installer fixes the in-game restart and brings the in-game menu settings to the launcher; 0.1.12 added a laptop video preset, a direct `--play` launch and clearer preparation errors; 0.1.11 roughly halved native compile time in **Build**; 0.1.10 fixed character select ignoring the controller after pressing +; 0.1.9 added a Profile tab, launcher key/controller bindings, frame generation, save import and a fix for saves that did not persist.
+> **Open for testing, still experimental.** Races have completed in local tests, but visual defects, first-use shader stutters and growing VRAM usage remain. Multiplayer between separate PCs is not yet qualified. The 0.1.14 test installer fixes crashes and a graphics memory leak seen in online play through Nextendo, and a likely cause of mid-race disconnects; 0.1.13 fixes the in-game restart and brings the in-game menu settings to the launcher; 0.1.12 added a laptop video preset, a direct `--play` launch and clearer preparation errors; 0.1.11 roughly halved native compile time in **Build**; 0.1.10 fixed character select ignoring the controller after pressing +; 0.1.9 added a Profile tab, launcher key/controller bindings, frame generation, save import and a fix for saves that did not persist.
 
 ## On the starting grid
 
@@ -60,6 +60,8 @@ RatOne develops and maintains the MK8 adaptation, launcher and integration. The 
 - Internet for the initial tool download (about 0.4 GiB installed, before build caches) and updates. Tools are shared across launcher versions.
 
 Tools downloads a pinned CPython package, verifies SHA-256 and creates its local environment without changing system Python or PATH. Incompatible or incomplete environments are preserved in `local/python-backup-*` and recreated automatically. Available in 0.1.7; users of 0.1.6 can update through Support before retrying Tools.
+
+Included in the 0.1.14 test release, from online play through Nextendo (experimental; tested by one player, races of up to about 25 minutes): MK8's dynamic resolution no longer keeps every render-target size it has used in graphics memory, which ran an 8 GB card out of memory after a few online races or a slow scene change; the online player list now gets the player's Mii data instead of leftover bytes, so the player should no longer show up under their character's name (not yet confirmed in a room); the Mii-free mode no longer crashes on a racer's missing model part as a race loads, or on the online room's course vote and reveal; a likely cause of error 2618-0006 mid-race is fixed: Windows turned the network's "port closed" reply into a receive error that a Switch never reports, and every opponent then appeared disconnected at once (one session without the error since; not proven); `udp_port` in `mk8net.ini` keeps the game's online traffic on one UDP port you can forward on the router (error 2618-0519 with a strict NAT); and the in-game menu hides options from other games. Run **Build** again after updating.
 
 Included in the 0.1.13 test release: "Restart the game" in the in-game menu (F1 or Esc) no longer crashes: the game closes and the launcher opens it again. The menu's Online backend choice (Nextendo) is now kept between starts; Nextendo itself is experimental and untested with this build. Settings gains the in-game menu options MK8 uses: upscaler, memory display, full-speed shader preparation, menu theme, an Audio section (volume up to 200%, reverb, movie sound, mute in background) and a Game section (system language, controllers from player 2). Run **Build** again after updating.
 

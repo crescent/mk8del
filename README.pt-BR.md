@@ -13,7 +13,7 @@
 ![Plataforma](https://img.shields.io/badge/Windows-x64-0078D6)
 ![Gráficos](https://img.shields.io/badge/Gráficos-Vulkan-AC162C)
 ![Linguagens](https://img.shields.io/badge/Rust-C%2FC%2B%2B-555555)
-![Release base](https://img.shields.io/badge/Release_base-0.1.13-ef795d)
+![Release base](https://img.shields.io/badge/Release_base-0.1.14-ef795d)
 ![Estado](https://img.shields.io/badge/Estado-Experimental-e6a23c)
 [![Licença](https://img.shields.io/badge/Licença-GPL--3.0--or--later-blue)](LICENSE)
 
@@ -28,7 +28,7 @@ com launcher nativo, runtime Vulkan e salas multijogador em desenvolvimento.
 > Use seus próprios arquivos do jogo e as chaves do seu console. O repositório e as releases não incluem ROMs, recursos do jogo, chaves, saves ou código recompilado do jogo. A compilação acontece localmente, a partir dos seus arquivos.
 
 > [!NOTE]
-> **Disponível para testes, ainda experimental.** Corridas foram concluídas em testes locais, mas persistem defeitos visuais, engasgos no primeiro uso de shaders e crescimento de VRAM. Multiplayer entre PCs diferentes ainda não foi qualificado. O instalador de testes 0.1.13 corrige o reinício pelo menu do jogo e leva as opções desse menu ao launcher; o 0.1.12 trouxe a predefinição de vídeo para notebook, o início direto com `--play` e erros de preparação mais claros; o 0.1.11 reduziu à metade a compilação nativa do **Build**; o 0.1.10 corrigiu a seleção de personagens que ignorava o controle depois do +; o 0.1.9 trouxe a aba Perfil, teclas/botões no launcher, geração de quadros, importação de save e a correção dos saves que não persistiam.
+> **Disponível para testes, ainda experimental.** Corridas foram concluídas em testes locais, mas persistem defeitos visuais, engasgos no primeiro uso de shaders e crescimento de VRAM. Multiplayer entre PCs diferentes ainda não foi qualificado. O instalador de testes 0.1.14 corrige quedas e um vazamento de memória de vídeo vistos no jogo online pela Nextendo, e uma causa provável de desconexões no meio da corrida; o 0.1.13 corrige o reinício pelo menu do jogo e leva as opções desse menu ao launcher; o 0.1.12 trouxe a predefinição de vídeo para notebook, o início direto com `--play` e erros de preparação mais claros; o 0.1.11 reduziu à metade a compilação nativa do **Build**; o 0.1.10 corrigiu a seleção de personagens que ignorava o controle depois do +; o 0.1.9 trouxe a aba Perfil, teclas/botões no launcher, geração de quadros, importação de save e a correção dos saves que não persistiam.
 
 ## No grid de largada
 
@@ -60,6 +60,8 @@ RatOne desenvolve e mantém a adaptação MK8, o launcher e a integração. A ba
 - Internet para baixar as ferramentas inicialmente (cerca de 0,4 GiB instalados, antes dos caches) e atualizar. As ferramentas são compartilhadas entre versões do launcher.
 
 Ferramentas baixa CPython fixado, verifica SHA-256 e cria o ambiente local sem alterar o Python do sistema ou o PATH. Ambientes incompatíveis ou incompletos são preservados em `local/python-backup-*` e recriados automaticamente. Disponível na 0.1.7; usuários da 0.1.6 podem atualizar pelo Suporte antes de repetir Ferramentas.
+
+Incluído na versão de testes 0.1.14, a partir do jogo online pela Nextendo (experimental; testado por um jogador, sessões de até ~25 minutos): a resolução dinâmica do MK8 não guarda mais na memória de vídeo todos os tamanhos de alvo de renderização já usados, o que esgotava uma placa de 8 GB depois de algumas corridas online ou numa troca de cena lenta; a lista de jogadores online recebe os dados do Mii do jogador em vez de bytes soltos, então o jogador não deve mais aparecer com o nome do personagem (ainda não confirmado numa sala); o modo sem Mii não trava mais com uma parte de modelo ausente de um corredor ao carregar a corrida, nem na votação e revelação de pista da sala online; uma causa provável do erro 2618-0006 no meio da corrida foi corrigida: o Windows transformava a resposta "porta fechada" da rede num erro de recepção que o Switch nunca informa, e todos os adversários pareciam desconectar de uma vez (uma sessão sem o erro desde então; não comprovado); `udp_port` em `mk8net.ini` mantém o tráfego online do jogo numa porta UDP que pode ser redirecionada no roteador (erro 2618-0519 com NAT estrito); e o menu do jogo esconde opções de outros jogos. Rode **Build** de novo após atualizar.
 
 Incluído na versão de testes 0.1.13: "Restart the game" no menu do jogo (F1 ou Esc) não trava mais: o jogo fecha e o launcher o abre de novo. A escolha do backend online do menu (Nextendo) agora fica salva entre aberturas; a Nextendo em si é experimental e não foi testada com esta build. Configurações ganhou as opções do menu do jogo que o MK8 usa: ampliação, uso de memória, shaders em velocidade máxima, tema do menu, uma seção Áudio (volume até 200%, reverberação, som dos vídeos, silenciar em segundo plano) e uma seção Jogo (idioma do sistema, controles a partir do jogador 2). Rode **Build** de novo após atualizar.
 
