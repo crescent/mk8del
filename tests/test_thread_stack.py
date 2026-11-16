@@ -76,7 +76,7 @@ int main(void) {
 }
 ''', encoding='utf-8')
             exe = out/'stack.exe'
-            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu',
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG',
                             '-O1', '-UNDEBUG', str(source), '-o', str(exe), '-lpthread',
                             '-Wl,--stack,268435456'],
                 env=dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache')), check=True)

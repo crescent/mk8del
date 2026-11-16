@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
             env.pop('MK8_ASYNC_SUBMIT', None)
             env.pop('MK8_KEEP_POOL_TEXTURES', None)
             env.pop('MK8_RELEASE_POOL_TEXTURES', None)
-            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', '-DFATAL(...)=abort()',
+            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2', '-DFATAL(...)=abort()',
                                     '-I'+str(runtime), '-I'+str(runtime/'nvn'), '-I'+str(DEPS/'include'), str(source), '-o', str(exe)],
                                    env=env, capture_output=True, text=True)
             self.assertEqual(build.returncode, 0, build.stderr[-3000:])

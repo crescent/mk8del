@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
 ''', encoding='utf-8')
             exe = out/'budget.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2',
+            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2',
                                     '-DLOG(...)=((void)0)', '-I'+str(runtime/'nvn'), '-I'+str(runtime), '-I'+str(DEPS/'include'),
                                     str(source), str(runtime/'nvn/buildsync.c'), '-o', str(exe)],
                                    env=env, capture_output=True, text=True)

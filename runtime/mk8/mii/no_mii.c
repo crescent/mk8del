@@ -12,3 +12,14 @@ int mk8_no_mii_renderer(void) {
         LOG("[mk8:no-mii] Mii manager preparation/update disabled; gameplay unqualified\n");
     return 1;
 }
+
+// A model's part list with an empty entry (toolchain/experimental.py, f_700069127c): suspected absent Mii model.
+// No-Mii mode only: the part is skipped and logged; otherwise the original null access stays.
+int mk8_no_mii_null_part(uint64_t owner) {
+    if (!mk8_no_mii_renderer()) return 0;
+    static atomic_uint skipped;
+    unsigned n = atomic_fetch_add(&skipped, 1) + 1;
+    if (n <= 8 || n % 1000 == 0)
+        LOG("[mk8:no-mii] model %llx: empty entry in its part list skipped (%u so far)\n", (unsigned long long)owner, n);
+    return 1;
+}

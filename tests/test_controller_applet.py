@@ -75,7 +75,7 @@ int main(void) {
 ''', encoding='utf-8')
             exe = out/'focus.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', str(source), '-o', str(exe)],
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2', str(source), '-o', str(exe)],
                            env=env, check=True)
             subprocess.run([str(exe)], check=True, timeout=30)
 

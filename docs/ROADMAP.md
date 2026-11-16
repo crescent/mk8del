@@ -6,7 +6,7 @@ Legenda: **[bloqueia]** impede o uso normal · **[visível]** atrapalha, mas dá
 
 Preparação 0.1.7: Python 3.12 x64 privado baixado automaticamente, com reparo de ambientes incompatíveis/incompletos e backup. Resta acompanhar instalações em outras máquinas; detalhes em STATUS.md.
 
-Versão 0.1.13 (testes, fork crescent/mk8del): reinício pelo menu do jogo via launcher, escolha da Nextendo salva (experimental) e opções do menu do jogo em Configurações (parte do item 13); mods em espera.
+Versão 0.1.14 (testes, fork crescent/mk8del): online pela Nextendo — vazamento de memória de vídeo da resolução dinâmica, Mii da lista online, quedas do modo sem Mii na votação e ao carregar corrida, causa provável do 2618-0006 e `udp_port`; menu sem opções de outros jogos. Versão 0.1.13 (testes, fork crescent/mk8del): reinício pelo menu do jogo via launcher, escolha da Nextendo salva (experimental) e opções do menu do jogo em Configurações (parte do item 13); mods em espera.
 
 Versão 0.1.12 (testes, fork crescent/mk8del): Fases A e B da seção 6 e itens 8, 10 e 11 (predefinição Notebook, mensagens claras, `--play`), teste de abertura depois da build e correção do CRLF no `mk8d.ini`.
 
@@ -93,7 +93,7 @@ Já conferido no código, fora do plano: o despacho de funções (`runtime/dispa
 10. Feito: antes da importação longa, `toolchain/import_mk8.py` (`check_packages`) identifica cada arquivo pelos cabeçalhos e dá mensagem própria para XCI/XCZ, arquivo que não é NSP/NSZ, outro jogo, DLC, atualização de outra versão, base diferente, base ou atualização repetida, seleção ausente e prod.keys sem `header_key` ou sem as chaves da geração usada. Pacotes nos campos trocados são aceitos. O launcher mostra o motivo da falha em vez do texto genérico, em PT-BR e inglês. Testes em `tests/test_import_mk8.py` e `crates/build-manager`.
 11. Feito: `Launcher.exe --play` inicia o jogo pelo mesmo caminho do botão Jogar (solo), sem abrir a janela. Sem build pronta, com o jogo já aberto ou se o jogo fechar com erro, o launcher abre com a mensagem (e o relatório da falha em Suporte). Fechar o jogo normalmente encerra tudo sem janela. O atalho na área de trabalho com `--play` ficou para depois.
 12. **Em espera (pedido do mantenedor, 12/11/2026).** Mods (uma pasta): o runtime já aceita `RECOMP_MOD_DIR`, e o upstream tem uma página de mods no menu do jogo (`runtime/ui/mods_page.mm`). Primeiro verificar se ela funciona no Windows; depois, aba no launcher que lista `data/mods/*/romfs`.
-13. **Menu dentro do jogo.** Em parte: Configurações do launcher tem as opções do menu (F1 ou Esc) que o MK8 usa, no mesmo `mk8d.ini`; "Reiniciar o jogo" do menu agora reabre o processo pelo launcher. Falta esconder no menu as opções de outros jogos (pular introdução, ícones de botão, proporção, Hero Mode, desfoque e afins) e documentar como abrir.
+13. **Menu dentro do jogo.** Em parte: Configurações do launcher tem as opções do menu (F1 ou Esc) que o MK8 usa, no mesmo `mk8d.ini`; "Reiniciar o jogo" do menu agora reabre o processo pelo launcher. A preparação já esconde no menu as opções de outros jogos (pular introdução, ícones de botão, proporção; Hero Mode e desfoque já ficavam fora). Falta conferir no jogo (exige `--runtime-only`) e documentar como abrir.
 14. **Controles por dispositivo.** Começar pela tela de controles do jogo (`runtime/ui/controls_ui.mm`): perfil por GUID SDL e associação apertando o botão. Atribuição automática de 2–4 jogadores só depois da correção da tela dividida.
 
 ### Fora do plano

@@ -107,7 +107,7 @@ int main(void) {
 ''', encoding='utf-8')
             exe = out/'bc.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O1', '-I'+str(runtime),
+            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1', '-I'+str(runtime),
                                     '-I'+str(DEPS/'include'), str(source), '-o', str(exe)], env=env, capture_output=True, text=True)
             self.assertEqual(build.returncode, 0, build.stderr[-3000:])
             plain = {k: v for k, v in os.environ.items() if k != 'MK8_BC_RENDER_DIRECT'}

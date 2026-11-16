@@ -55,7 +55,7 @@ RETIRE = r"""
 #include <stdio.h>
 #include <stdlib.h>
 #define FATAL(...) (fprintf(stderr, __VA_ARGS__), exit(3))
-typedef struct NvnTexture { unsigned mk8_refs; int id; } NvnTexture;
+typedef struct NvnTexture { unsigned mk8_refs; int id; uint64_t mk8_owner; } NvnTexture;
 static pthread_t translator;
 static _Atomic int destroyed, off_translator;
 void backend_texture_destroyed(NvnTexture *t) {
@@ -63,6 +63,7 @@ void backend_texture_destroyed(NvnTexture *t) {
     atomic_fetch_add(&destroyed, 1);
     if (!pthread_equal(pthread_self(), translator)) atomic_fetch_add(&off_translator, 1);
 }
+void mk8_texture_detach(NvnTexture *t) { (void)t; }
 #include "texture_refs.inc"
 static NvnTexture *make(void) { NvnTexture *t = calloc(1, sizeof *t); t->mk8_refs = 1; return t; }
 static _Atomic int stop;
@@ -176,7 +177,7 @@ class RuntimeStallTests(unittest.TestCase):
             runtime = prepare_host_sources(ROOT/'upstream/smm2recomp/recomp', out/'host')
             (out/'harness.c').write_text(HARNESS, encoding='utf-8')
             exe = out/'saver.exe'
-            subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-O1', '-I' + str(runtime),
+            subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1', '-I' + str(runtime),
                             out/'harness.c', ROOT/'runtime/mk8/graphics/pipeline_saver.c', '-o', exe],
                            check=True, capture_output=True, env=compiler_env())
             result = subprocess.run([exe], capture_output=True, text=True, timeout=60)
@@ -192,7 +193,7 @@ class RuntimeStallTests(unittest.TestCase):
             out = Path(folder)
             (out/'retire.c').write_text(RETIRE, encoding='utf-8')
             exe = out/'retire.exe'
-            subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-O1',
+            subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1',
                             '-I' + str(ROOT/'runtime/mk8/graphics'), out/'retire.c', '-o', exe],
                            check=True, capture_output=True, env=compiler_env())
             result = subprocess.run([exe], capture_output=True, text=True, timeout=60)
@@ -207,7 +208,7 @@ class RuntimeStallTests(unittest.TestCase):
             runtime = prepare_host_sources(ROOT/'upstream/smm2recomp/recomp', out/'host')
             (out/'amiibo.c').write_text(AMIIBO, encoding='utf-8')
             exe = out/'amiibo.exe'
-            built = subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-O1', '-I' + str(runtime),
+            built = subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1', '-I' + str(runtime),
                                     '-I' + str(ROOT/'runtime/mk8/services'), out/'amiibo.c', '-o', exe],
                                    capture_output=True, text=True, env=compiler_env())
             self.assertEqual(built.returncode, 0, built.stderr[-3000:])

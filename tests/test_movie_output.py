@@ -91,7 +91,7 @@ int main(void) {
 ''', encoding='utf-8')
             exe = out/'movie.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O1', str(source), '-o', str(exe)],
+            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1', str(source), '-o', str(exe)],
                                    env=env, capture_output=True, text=True)
             self.assertEqual(build.returncode, 0, build.stderr[-3000:])
             plain = {k: v for k, v in os.environ.items() if k != 'MK8_MOVIE_OWN_BUFFER'}

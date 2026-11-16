@@ -45,11 +45,12 @@ class TexturePoolTests(unittest.TestCase):
 enum { TEXTYPE_1D, TEXTYPE_2D, TEXTYPE_3D, TEXTYPE_CUBE, TEXTYPE_2D_ARRAY, TEXTYPE_CUBE_ARRAY };
 typedef struct { uint64_t x[31]; } Cpu;
 typedef struct { uint8_t raw[0x28]; } NvnTextureView;
-typedef struct NvnTexture { uint32_t target, width, height; unsigned mk8_refs; } NvnTexture;
+typedef struct NvnTexture { uint32_t target, width, height; unsigned mk8_refs; uint64_t mk8_owner; } NvnTexture;
 typedef struct { NvnTexture *tex; NvnTextureView view; bool has_view; } NvnTexEntry;
 typedef struct NvnDescPool { uint64_t addr; int count; void *entries; } NvnDescPool;
 static int freed;
 static void backend_texture_destroyed(NvnTexture *t) { (void)t; freed++; }
+void mk8_texture_detach(NvnTexture *t) { (void)t; }
 uint64_t renderer_present_count(void) { return 0; }
 ''' + refs + support + register + lookup + r'''
 static NvnTexture *texture(uint32_t target, uint32_t w, uint32_t h) {
@@ -84,7 +85,7 @@ int main(int argc, char **argv) {
 ''', encoding='utf-8')
             exe = out/'pool.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', '-I'+str(DEPS/'include'),
+            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2', '-I'+str(DEPS/'include'),
                                     str(source), '-o', str(exe)], env=env, capture_output=True, text=True)
             self.assertEqual(build.returncode, 0, build.stderr[-3000:])
             subprocess.run([str(exe)], check=True, timeout=30)

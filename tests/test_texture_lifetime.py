@@ -24,6 +24,16 @@ class TextureLifetimeTests(unittest.TestCase):
             self.assertEqual(text.count('mk8_free_list(graveyard['), 2)
             self.assertIn('mk8_copy_command_textures(d, r)', text)
             self.assertIn('mk8_rt_release(&prev)', (runtime/'nvn/vulkan/exec.c').read_text())
+            objects = (runtime/'nvn/objects.c').read_text()
+            start = objects.index('NVN(nvnTextureInitialize)')
+            adopt = objects.index('mk8_texture_adopt(A(0), t)')
+            self.assertLess(start, adopt)
+            self.assertLess(adopt, objects.index('SET_HOST(A(0), t);', start))
+            self.assertLess(objects.index('NVN(nvnTextureFinalize)'), objects.index('if (t) mk8_texture_disown(t);'))
+            textures = (runtime/'nvn/vulkan/textures.c').read_text()
+            self.assertIn('    if (mk8_orphan_keep(t, b)) return;', textures)
+            self.assertIn('void mk8_texture_detach(NvnTexture *t) {', textures)
+            self.assertLess(textures.index('mk8_orphans_sweep();'), textures.index('a->b->refs++;'))
 
     @unittest.skipUnless(DEFAULT_COMPILER.is_file(), 'Native compiler required')
     def test_finalize_before_replay_and_recording_transfer(self):
@@ -35,9 +45,11 @@ class TextureLifetimeTests(unittest.TestCase):
 #include <string.h>
 #include <assert.h>
 #define FATAL(...) abort()
-typedef struct { unsigned mk8_refs, mk8_command_refs, mk8_finalized; unsigned marker; } NvnTexture;
+typedef struct { unsigned mk8_refs, mk8_command_refs, mk8_finalized; unsigned marker; uint64_t mk8_owner; } NvnTexture;
 static unsigned destroyed;
 static void backend_texture_destroyed(NvnTexture *t) { assert(t->marker==42); destroyed++; }
+static unsigned detached;
+void mk8_texture_detach(NvnTexture *t) { assert(t->marker==42 && t->mk8_refs>=2); detached++; }
 #include "graphics/texture_refs.inc"
 typedef struct { uint32_t op,size; struct Mk8TextureRefs *mk8_textures; } CmdRec;
 #define CMD_END 0
@@ -67,6 +79,17 @@ int main(void) {
  mk8_release_records((uint8_t*)buffer,sizeof(CmdRec)); // abandoned recording
  assert(destroyed==2 && !buffer[0].mk8_textures);
  mk8_texture_release(NULL);mk8_command_texture(buffer,0);
+ // the same guest object initialized again without finalize: the earlier texture comes back to be released once
+ NvnTexture *a=calloc(1,sizeof *a),*b=calloc(1,sizeof *b),*c=calloc(1,sizeof *c);
+ a->mk8_refs=b->mk8_refs=c->mk8_refs=1;a->marker=b->marker=c->marker=42;
+ assert(!mk8_texture_adopt(0x1000,a) && !mk8_texture_adopt(0x1000+4096*16,c)); // (same bucket)
+ assert(mk8_texture_adopt(0x1000,b)==a);
+ mk8_texture_abandoned(a);  // its image is let go; the texture stays for copies of the object
+ assert(detached==1 && a->mk8_refs==1 && destroyed==2);
+ mk8_texture_disown(a);  // a copy finalized later never removes the current entry
+ mk8_texture_release(a);assert(destroyed==3);
+ mk8_texture_disown(b);assert(!mk8_texture_adopt(0x1000,b)); // finalized: nothing left to release
+ mk8_texture_disown(c);assert(!mk8_texture_adopt(0x1000+4096*16,c));
  return 0;
 }
 ''', encoding='utf-8')
@@ -101,9 +124,10 @@ int main(void) {
 #define LOG(...) ((void)0)
 #define GUEST_LO 0x1000
 #define GUEST_HI 0x100000
-typedef struct { unsigned mk8_refs, mk8_command_refs; } NvnTexture;
+typedef struct { unsigned mk8_refs, mk8_command_refs; uint64_t mk8_owner; } NvnTexture;
 static unsigned destroyed;
 static void backend_texture_destroyed(NvnTexture *t) { (void)t; destroyed++; }
+void mk8_texture_detach(NvnTexture *t) { (void)t; }
 #include "graphics/texture_refs.inc"
 typedef struct { uint32_t op,size; struct Mk8TextureRefs *mk8_textures; } CmdRec;
 #define CMD_END 0
@@ -170,7 +194,7 @@ int main(int argc, char **argv) {
 ''', encoding='utf-8')
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
             exe = out/'retire.exe'
-            result = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O1',
+            result = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1',
                                      '-I'+str(ROOT/'runtime/mk8'), str(source), '-o', str(exe)],
                                     capture_output=True, text=True, env=env)
             self.assertEqual(result.returncode, 0, result.stderr)

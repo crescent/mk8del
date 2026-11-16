@@ -32,6 +32,7 @@ class PoolReleaseTests(unittest.TestCase):
 #include <stdlib.h>
 #include <string.h>
 #define LOG(...) ((void)0)
+#define FATAL(...) abort()
 #define VK_NULL_HANDLE 0
 #define GUEST_LO 0x1000
 #define GUEST_HI 0x100000
@@ -54,11 +55,15 @@ static float g_rs_x=1, g_rs_y=1;
 static unsigned retired, forgotten, creates, ended;
 static Dead deferred[16];
 static void defer(Dead d) { deferred[retired++]=d; }
-static void views_forget(TexBackend *b) { assert(b->image); forgotten++; }
+static void views_forget(TexBackend *b) { if (b->image) forgotten++; }  // (textures.c: a scan, also without an image)
 static void vk_collect_dead(void) {}
-static bool tex_scalable(NvnTexture *t) { (void)t; return false; }
+static bool scalable_on;
+static bool tex_scalable(NvnTexture *t) { (void)t; return scalable_on; }
 static bool mk8_vram_traced(void) { return false; }
-static uint64_t renderer_present_count(void) { return 1; }
+static uint64_t frames = 1;
+static uint64_t renderer_present_count(void) { return frames; }
+static bool tight;
+bool mk8_vram_tight(void) { return tight; }
 static void create_image(NvnTexture *t, TexBackend *b) { (void)t; b->image=++creates; b->mem=128; }
 static void vmaGetAllocationInfo(int vma, uint64_t mem, VmaAllocationInfo *info) { (void)vma; info->size=mem; }
 static void vk_end_pass(void) { ended++; }
@@ -66,7 +71,7 @@ void vk_alias_texture_destroyed(NvnTexture *t) { (void)t; }
 void mk8_pool_copy_aliases(uint64_t lo, uint64_t hi) { (void)lo; (void)hi; }
 '''
             # mk8_used is only needed by the optional diagnostic inserted in tex_backend.
-            fixture = fixture.replace('int refs, reg;', 'int refs, reg; uint64_t mk8_used;')
+            fixture = fixture.replace('int refs, reg;', 'int refs, reg; uint64_t mk8_used, mk8_orphaned, mk8_last_use; bool mk8_orphan_listed;')
             checks = r'''
 int main(void) {
     NvnTexture a={.addr=0x1000,.width=16}, b=a, c={.addr=0x1800}, d=c;
@@ -93,14 +98,46 @@ int main(void) {
     assert(!nonalias.backend->image && outside.backend->image);
     backend_texture_destroyed(&b); backend_texture_destroyed(&c); backend_texture_destroyed(&d);
     backend_texture_destroyed(&upper); backend_texture_destroyed(&outside); backend_texture_destroyed(&nonalias);
-    assert(!g_nlive);
+    assert(!g_nlive && !mk8_norphans);  // finalized: freed at once
+    NvnTexture e={.addr=0x1000,.width=16}, f=e, g={.addr=0x1000,.width=32}, h=g;
+    TexBackend *kept=tex_backend(&e); unsigned before=retired, kept_image=(unsigned)kept->image;
+    mk8_texture_detach(&e);  // a re-initialized object lets go of the image: kept for the next one
+    assert(!e.backend && mk8_norphans==1 && retired==before && kept->image);
+    assert(tex_backend(&f)==kept && kept->refs==1);  // taken back with its image
+    TexBackend *wide=tex_backend(&g); mk8_texture_detach(&f); mk8_texture_detach(&g); mk8_texture_detach(&nonalias);
+    assert(mk8_norphans==2);
+    frames+=MK8_ORPHAN_FRAMES; assert(tex_backend(&h)==wide && mk8_norphans==2);  // (the 32-wide one taken back)
+    frames++; tex_backend(&e);
+    assert(!mk8_norphans && retired==before+1 && e.backend->image!=kept_image);  // (the freed backend's memory may be reused)  // an expired shape is freed
+    // dynamic resolution: a new target size retires the other sizes over its storage unused for 2 s
+    scalable_on=true;
+    NvnTexture s1={.addr=0x5000,.width=64,.height=36}, s2={.addr=0x5000,.width=60,.height=34}, s3={.addr=0x5000,.width=56,.height=32};
+    TexBackend *b1=tex_backend(&s1), *b2=tex_backend(&s2);
+    assert(b1->image && b2->image);  // both just used: kept
+    frames+=MK8_ORPHAN_FRAMES+1; tex_backend(&s2);
+    before=retired; TexBackend *b3=tex_backend(&s3);
+    assert(!b1->image && b2->image && b3->image && retired==before+1);
+    assert(tex_backend(&s1)==b1 && b1->image && b1->refs==1);  // a later use recreates it
+    // memory pressure: both wait 2 frames instead of 2 s
+    tight=true;
+    NvnTexture s4={.addr=0x5000,.width=52,.height=30};
+    frames+=3; tex_backend(&s3);
+    before=retired; TexBackend *b4=tex_backend(&s4);
+    assert(!b1->image && !b2->image && b3->image && b4->image && retired==before+2);  // (s1 and s2 unused 3 frames)
+    NvnTexture o1={.addr=0x9000,.width=8}, o2=o1, o3={.addr=0x9000,.width=4};
+    TexBackend *ob=tex_backend(&o1); mk8_texture_detach(&o1);
+    assert(mk8_norphans==1);
+    frames+=3; before=retired; tex_backend(&o3);
+    assert(!mk8_norphans && retired==before+1 && tex_backend(&o2)!=ob);  // not taken back within 2 frames: freed
+    tight=false;
+    scalable_on=false;
     return 0;
 }
 '''
             source = out/'pool.c'
             source.write_text(fixture + body + range_code + unlisted + checks, encoding='utf-8')
             exe = out/'pool.exe'
-            result = subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-O1',
+            result = subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1',
                                      source, '-o', exe], capture_output=True, text=True, env=compiler_env())
             self.assertEqual(result.returncode, 0, result.stderr)
             subprocess.run([exe], check=True, timeout=30, env=compiler_env())
@@ -140,7 +177,7 @@ int main(void) {
 }
 ''', encoding='utf-8')
             exe = out/'copies.exe'
-            result = subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-O1',
+            result = subprocess.run([DEFAULT_COMPILER, 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1',
                                      source, '-o', exe], capture_output=True, text=True, env=compiler_env())
             self.assertEqual(result.returncode, 0, result.stderr)
             subprocess.run([exe], check=True, timeout=30, env=compiler_env())

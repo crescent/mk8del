@@ -34,8 +34,14 @@ def prepare(upstream, output, profile_path=None):
     shutil.copytree(ROOT / "games/mk8d", output / "games/mk8d")
     adapt_modules(output, profile_path)
     replace(output, "runtime/net/vlan.c", "s > 3", "s > 11")
+    # Menu options that belong to other games (nothing in MK8 reads them); Hero Mode and blur are already behind GAME_LA_SETTINGS.
+    menu = "runtime/ui/menu.mm"
+    replace(output, menu, '    opt_choice("Aspect ratio"', '    if (0) opt_choice("Aspect ratio"')
+    replace(output, menu, '    if (opt_toggle("Skip intro"', '    if (0 && opt_toggle("Skip intro"')
+    replace(output, menu, '    header("Button prompts");\n    {', '    if (0) {')
+    replace(output, menu, '    ImGui::Spacing();\n    header("System language");', '    header("System language");')
     result = {"schema": 2, "upstream_commit": manifest["commit"], "game": "mk8d", "abi": 3, "gameplay_verified": False,
-              "adaptations": ["profile-driven module ABI and tables", "loader and constructor candidate", "stop on unimplemented HLE", "twelve VLAN slots", "game-specific modules only"]}
+              "adaptations": ["profile-driven module ABI and tables", "loader and constructor candidate", "stop on unimplemented HLE", "twelve VLAN slots", "game-specific modules only", "menu without other games' options"]}
     (output / "MK8-ADOPTION.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 

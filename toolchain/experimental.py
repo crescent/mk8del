@@ -17,6 +17,8 @@ MII_SELECTION_UNIT = 'main_102.c'
 MII_SELECTION_SHA256 = '1e6840dbc6c84ece86afc678dc967981c168de1c27bc3c27a824c46969d8b331'
 MII_CONFIRM_UNIT = 'main_113.c'
 MII_CONFIRM_SHA256 = '4b4cf4a1aec1b9d1d0479a920a3fbf46fe518d23d7624a19caea00808f7d88f7'
+MODEL_PART_UNIT = 'main_149.c'
+MODEL_PART_SHA256 = 'b9358ba936276cdcc43b7126de8d20af83ee2b4e2d0bb337429e7609c3b9939e'
 LAN_VOTE_UNIT = 'main_115.c'
 LAN_VOTE_SHA256 = 'e7f979c9bae346fca7da9f76349d27eeec5fcc4b23c87b43d396c39b605ef048'
 # Guest `bl setjmp` sites (PLT stub f_70043e9b50 -> sdk GOT +0x9875a8 "setjmp") by generated sdk unit; each address is
@@ -80,6 +82,17 @@ def patch_no_mii_unit(src, output):
              'c->x[30] = 0x70004e4490ull; if (!mk8_skip_vote_mii) f_7000427e74(c);'),
             ('L_70004e44b0:;',
              'L_70004e44b0:;\n    if (mk8_skip_vote_mii && LD32(c->x[19] + 0x20) == 1) goto L_70004e44e4;'),
+            # Online rooms take the other branch (f_700007c930 false): f_7000427888 keeps its bookkeeping, but its
+            # answer is the absent model's pose (always false), which held the vote at "waiting for everyone" until
+            # the room dropped this player (2026-11-12). f_7000427960 animates that model (f_7000428764, unguarded).
+            ('c->x[30] = 0x70004e43e8ull; f_7000427888(c);', '''{
+        uint64_t models = LD64(c->x[0] + 0x68);
+        mk8_skip_vote_mii = mk8_no_mii_renderer() && models &&
+            LD32(models + 0x18) == 0 && LD32(models + 0x28) == 0;
+        c->x[30] = 0x70004e43e8ull; f_7000427888(c);
+    }'''),
+            ('c->x[30] = 0x70004e44a4ull; f_7000427960(c);',
+             'c->x[30] = 0x70004e44a4ull; if (!mk8_skip_vote_mii) f_7000427960(c);'),
         ]
         for old, new in changes:
             if text.count(old) != 1:
@@ -193,6 +206,22 @@ def patch_no_mii_unit(src, output):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text('extern int mk8_no_mii_renderer(void);\n'+text, encoding='utf-8')
         return target
+    if src.name == MODEL_PART_UNIT and src.parent.name == 'main':
+        raw = src.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != MODEL_PART_SHA256:
+            raise ValueError('Model part policy requires the verified MK8 4.0.1 generated unit')
+        text = raw.decode('utf-8')
+        entry = 'void f_700069127c(Cpu *c) {'
+        if text.count(entry) != 1:
+            raise ValueError('Model part update boundary changed')
+        # A model's part list (f_7000690fd8 walks count +0x40, array +0x48) held an empty entry when the next online
+        # race loaded, and this update read null+0x1c (2026-11-13). Suspected absent Mii model: no-Mii mode only,
+        # skipped and logged (runtime/mk8/mii/no_mii.c). Its 13 callers do not read a result.
+        text = text.replace(entry, entry+'\n    if (!c->x[1] && mk8_no_mii_null_part(c->x[0])) return;')
+        target = output/'experimental'/src.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text('#include <stdint.h>\nextern int mk8_no_mii_null_part(uint64_t owner);\n'+text, encoding='utf-8')
+        return target
     if src.name == UI_UNIT and src.parent.name == 'main':
         raw = src.read_bytes()
         if hashlib.sha256(raw).hexdigest() != UI_SHA256:
@@ -210,19 +239,23 @@ def patch_no_mii_unit(src, output):
         if text.count(entry) != 1:
             raise ValueError('Mii UI readiness boundary changed')
         text = text.replace(entry, entry+'\n    if (mk8_no_mii_renderer() && LD32(c->x[0] + 0x18) == 0 && LD32(c->x[0] + 0x28) == 0) { c->x[0] = 1; return; }')
-        # LAN transitions animate or configure absent models despite both counts being zero.
+        # LAN transitions animate or configure absent models despite both counts being zero. 7000428810 and
+        # 7000428838 are the online vote's twins of 70004289ac/70004289d0 (null+0x4ae written at the reveal, 2026-11-12).
         for address in ('7000428a34', '7000428880', '70004288a0', '7000428900',
                         '70004289ac', '70004289d0', '7000428a18',
-                        '7000428d94', '7000428f80', '7000428fb0'):
+                        '7000428d94', '7000428f80', '7000428fb0',
+                        '7000428810', '7000428838'):
             entry = f'void f_{address}(Cpu *c) {{'
             if text.count(entry) != 1:
                 raise ValueError('Mii LAN animation boundary changed')
             text = text.replace(entry, entry+'\n    if (mk8_no_mii_renderer() && LD32(c->x[0] + 0x18) == 0 && LD32(c->x[0] + 0x28) == 0) return;')
-        entry = 'void f_70004288bc(Cpu *c) {'
-        if text.count(entry) != 1:
-            raise ValueError('Mii LAN pose query boundary changed')
-        # An absent model is not in animation state 10. The caller skips its pose update when false.
-        text = text.replace(entry, entry+'\n    if (mk8_no_mii_renderer() && LD32(c->x[0] + 0x18) == 0 && LD32(c->x[0] + 0x28) == 0) { c->x[0] = 0; return; }')
+        # An absent model is not in animation state 10. The callers skip their pose update when false.
+        # 70004288bc: LAN transition; 7000428720: online room's track vote (read null+0x679, 2026-11-12).
+        for address in ('70004288bc', '7000428720'):
+            entry = f'void f_{address}(Cpu *c) {{'
+            if text.count(entry) != 1:
+                raise ValueError('Mii pose query boundary changed')
+            text = text.replace(entry, entry+'\n    if (mk8_no_mii_renderer() && LD32(c->x[0] + 0x18) == 0 && LD32(c->x[0] + 0x28) == 0) { c->x[0] = 0; return; }')
         target = output/'experimental'/src.name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text('extern int mk8_no_mii_renderer(void);\n'+text, encoding='utf-8')
@@ -260,6 +293,18 @@ def patch_no_mii_unit(src, output):
     entry = 'void f_7000812fc0(Cpu *c) {'
     if text.count(entry) != 1:
         raise ValueError('Mii resource-list boundary changed')
+    text = text.replace(entry, entry+'\n    if (!c->x[0] && mk8_no_mii_renderer()) return;')
+    # Portrait request: with preparation skipped, the engine's worker list (+0x548) stays null and the request read
+    # address 0 when an online/LAN lobby showed players (f_700080f4a4 after f_7000618098, 2026-11-07 and 2026-11-12).
+    # The caller f_70000d4ffc stores the handle at +0x1538, and its release paths already treat 0 as no portrait.
+    entry = 'void f_700080f4a4(Cpu *c) {'
+    if text.count(entry) != 1:
+        raise ValueError('Mii portrait request boundary changed')
+    text = text.replace(entry, entry+'\n    if (mk8_no_mii_renderer() && !LD64(c->x[0] + 0x548)) { c->x[0] = 0; return; }')
+    # Portrait to pane: reads handle+8 unchecked; the absent portrait leaves the pane as it is (result unused by callers).
+    entry = 'void f_7000810c90(Cpu *c) {'
+    if text.count(entry) != 1:
+        raise ValueError('Mii portrait pane boundary changed')
     text = text.replace(entry, entry+'\n    if (!c->x[0] && mk8_no_mii_renderer()) return;')
     text = 'extern int mk8_no_mii_renderer(void);\n'+text
     target = output/'experimental'/src.name

@@ -27,6 +27,30 @@ def prepare_host_sources(source, output):
         raise ValueError('IPC response layout changed upstream')
     # Host-only structure: IPC serialization copies data explicitly, not this padding.
     ipc.write_text(text.replace(old, 'uint8_t data[0x200] __attribute__((aligned(8)));'), encoding='utf-8')
+    stub = runtime/'ipc.c'
+    text = stub.read_text(encoding='utf-8')
+    old = '        req->na, req->nb, req->nc);\n    resp->result = 0;\n'
+    if text.count(old) != 1:
+        raise ValueError('IPC stub handler changed upstream')
+    # Play reports (prepo:u, no HLE service) carry MK8's own event data, error codes among them (msgpack): their
+    # bytes go to the log so an online "communication error" can be read afterwards. Guest-bounded, capped.
+    stub.write_text(text.replace(old, '''        req->na, req->nb, req->nc);
+    if (!strcmp(s->name, "prepo:u")) {  // MK8 (toolchain/host.py): report event id and data, hex
+        static int mk8_reports;
+        for (int k = 0; k < req->nx + req->na && mk8_reports < 400; k++) {
+            const IpcBuf *b = k < req->nx ? &req->x[k] : &req->a[k - req->nx];
+            if (!b->size || b->addr < GUEST_LO || b->addr >= GUEST_HI || b->size > GUEST_HI - b->addr) continue;
+            const uint8_t *p = (const uint8_t *)(uintptr_t)b->addr;
+            uint64_t n = b->size < 2048 ? b->size : 2048;
+            char hex[4097] = "";
+            for (uint64_t i = 0; i < n; i++) snprintf(hex + 2 * i, 3, "%02x", p[i]);
+            mk8_reports++;
+            LOG("[mk8:prepo] cmd %u %c%d (%llu bytes): %s\\n", req->cmd, k < req->nx ? 'x' : 'a', k < req->nx ? k : k - req->nx,
+                (unsigned long long)b->size, hex);
+        }
+    }
+    resp->result = 0;
+'''), encoding='utf-8')
     language = runtime/'services/hid_set.c'
     text = language.read_text(encoding='utf-8')
     old = 'uint64_t *out = (uint64_t *)(uintptr_t)b->addr;'
@@ -145,6 +169,21 @@ def prepare_host_sources(source, output):
     if text.count(old) != 1:
         raise ValueError('Mii IsUpdated boundary changed upstream')
     text = text.replace(old, '    case 0: OUT(uint8_t, 0) = mk8_mii_updated; mk8_mii_updated = false; resp_size(resp, 1); break;\n    case 1: case 20:')
+    old = '    case 22: break;'
+    if text.count(old) != 1:
+        raise ValueError('Mii SetInterfaceVersion boundary changed upstream')
+    # UpdateLatest answered "ok" with 0x10 bytes: MK8 read a 0x58-byte CharInfo of leftovers into the
+    # player's Mii (f_700080e1d8), which online peers then listed by character name, without VR.
+    text = text.replace(old, '''    case 5: case 21: {  // UpdateLatest(CharInfo, source) -> CharInfo; GetIndex(CharInfo) -> s32
+        uint8_t latest[0x58];
+        unsigned d = mk8_mii_latest(req->data, req->cmd == 5 ? IN(uint32_t, 0x58) : 1, one_mii(), latest);
+        if (getenv("MK8_TRACE_MII")) LOG("[mk8:mii] cmd=%u result=%u\\n", req->cmd, d);
+        if (req->cmd == 21 && d != 4) { OUT(int32_t, 0) = 0; resp_size(resp, 4); }
+        else if (d) resp->result = MAKE_RESULT(126, d);
+        else { memcpy(resp->data, latest, 0x58); resp_size(resp, 0x58); }
+        break;
+    }
+'''+old)
     mii.write_text(text+'\n'+(ROOT/'runtime/mk8/mii/mii_editor.inc').read_text(encoding='utf-8'), encoding='utf-8')
     from mii_applet import adapt as adapt_mii_applet
     am = runtime/'services/am.c'
@@ -215,6 +254,8 @@ def prepare_host_sources(source, output):
     prepare_controller_applet(runtime)
     from online_notice import prepare as prepare_online_notice
     prepare_online_notice(runtime)
+    from nextendo_services import prepare as prepare_nextendo_services
+    prepare_nextendo_services(runtime)
     from movie_output import prepare as prepare_movie_output
     prepare_movie_output(runtime)
     from sampler_inline import prepare as prepare_sampler_inline
@@ -371,7 +412,7 @@ def build_host(source, output, workers=None):
     shim = output/'vk_shim.c'
     run([sys.executable, source/'tools/gen_vk_shim.py', DEPS/'include', source/'runtime/platform/vulkan-1.exports', shim], output/'vk-shim.log', env)
     # Export only the shared runtime ABI used by the generated game code.
-    exported = ['rt_dispatch', 'rt_svc', 'rt_brk', 'rt_udf', 'rt_ticks', 'fnprof_hit', 'g_fnprof DATA', 'mk8_no_mii_renderer', 'mk8_setjmp_arm']
+    exported = ['rt_dispatch', 'rt_svc', 'rt_brk', 'rt_udf', 'rt_ticks', 'fnprof_hit', 'g_fnprof DATA', 'mk8_no_mii_renderer', 'mk8_no_mii_null_part', 'mk8_setjmp_arm']
     exports = output/'exports.def'
     exports.write_text('LIBRARY mk8drecomp.exe\nEXPORTS\n'+'\n'.join(exported)+'\n', encoding='utf-8')
     export_source = output/'mk8_exports.c'

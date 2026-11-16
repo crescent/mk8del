@@ -37,7 +37,7 @@ def run_harness(source, root, archive):
     harness = root/'harness.c'
     harness.write_text(HARNESS, encoding='utf-8')
     exe = root/'native-test.exe'
-    subprocess.run([str(native.DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-mcpu=x86_64_v2',
+    subprocess.run([str(native.DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-mcpu=x86_64_v2',
                     '-I'+str(source/'runtime'), str(harness), archive, '-o', str(exe)], check=True)
     return subprocess.run([str(exe)], check=True, capture_output=True, text=True)
 
@@ -64,7 +64,7 @@ class NativeTests(unittest.TestCase):
             self.assertEqual(executed.stdout.count('native return 42'), 7)
             # Compile the real loader and dispatch too, rather than validating only generated text.
             for relative in ['loader.c', 'dispatch.c', 'gamelib.c', 'gamebuild.c']:
-                subprocess.run([str(native.DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-mcpu=x86_64_v2',
+                subprocess.run([str(native.DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-mcpu=x86_64_v2',
                                 '-O1', '-D_FILE_OFFSET_BITS=64', '-I'+str(source/'runtime'), '-c',
                                 str(source/'runtime'/relative), '-o', str(root/(relative+'.o'))], check=True)
 

@@ -88,7 +88,7 @@ int main(void) {
 bool game_net_config(const char *key, char *out, size_t cap);
 void game_net_config_set(const char *key, const char *val);
 int main(void) {
-    char v[64] = "";
+    char v[128] = "";
     assert(game_net_config("backend", v, sizeof v) && !strcmp(v, "local-nex"));
     game_net_config_set("backend", "nextendo");
     assert(game_net_config("backend", v, sizeof v) && !strcmp(v, "nextendo"));
@@ -96,6 +96,9 @@ int main(void) {
     game_net_config_set("bogus", "1");
     game_net_config_set("net_hosts", "a=1.2.3.4\\nbackend=ours");
     assert(!game_net_config("bogus", v, sizeof v) && !game_net_config("net_hosts", v, sizeof v));
+    assert(game_net_config("nextendo_tls_pin", v, sizeof v) && !strncmp(v, "770551f1", 8) && strlen(v) == 64);
+    game_net_config_set("nextendo_tls_pin", "ab");
+    assert(game_net_config("nextendo_tls_pin", v, sizeof v) && !strcmp(v, "ab"));
 }
 ''', encoding='utf-8')
             exe = output/'net.exe'
@@ -104,7 +107,7 @@ int main(void) {
                             str(program), str(ROOT/'runtime/mk8/services/net_config.c'), '-o', str(exe)],
                            env=env, check=True)
             subprocess.run([str(exe)], check=True, timeout=20, cwd=output)
-            self.assertEqual((output/'mk8net.ini').read_bytes(), b'# kept\nnet_log = 1\nbackend=nextendo\n')
+            self.assertEqual((output/'mk8net.ini').read_bytes(), b'# kept\nnet_log = 1\nbackend=nextendo\nnextendo_tls_pin=ab\n')
 
     def test_map_memory_backs_destination_before_copying(self):
         with tempfile.TemporaryDirectory() as folder:

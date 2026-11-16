@@ -57,7 +57,7 @@ int main(void) {
 ''', encoding='utf-8')
             exe = out/'append.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', str(source), '-o', str(exe)],
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2', str(source), '-o', str(exe)],
                            env=env, check=True)
             subprocess.run([str(exe)], check=True, timeout=30)
 
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 ''', encoding='utf-8')
             exe = out/'fmz.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', str(source), '-o', str(exe)],
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2', str(source), '-o', str(exe)],
                            env=env, check=True)
             clean = {k: v for k, v in os.environ.items() if k != 'LARECOMP_NO_FMZ'}
             subprocess.run([str(exe)], env=clean, check=True, timeout=30)
@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
 ''', encoding='utf-8')
             exe = out/'blend.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', str(source), '-o', str(exe)],
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2', str(source), '-o', str(exe)],
                            env=env, check=True)
             base = {k: v for k, v in os.environ.items() if k != 'LARECOMP_VK_NO_BLEND'}
             subprocess.run([str(exe)], check=True, env=base, timeout=30)

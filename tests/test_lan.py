@@ -79,7 +79,7 @@ int main(void) {
 }
 ''', encoding='utf-8')
             exe = out/'rng.exe'
-            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O1',
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1',
                             str(source), '-o', str(exe), '-lbcrypt', '-lpthread'],
                 env=dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache')), check=True)
             subprocess.run([str(exe)], check=True, timeout=10)
@@ -108,7 +108,7 @@ int main(void) {
 }
 ''', encoding='utf-8')
             exe = out/'retry.exe'
-            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O1',
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O1',
                             str(source), '-o', str(exe)],
                 env=dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache')), check=True)
             clean = {k:v for k,v in os.environ.items() if k != 'MK8_RETRY_CHILD'}
@@ -170,7 +170,7 @@ int main(void) {
                 source = out/f'{name}_test.c'
                 source.write_text(f'#include "runtime/services/{name}.c"\n'+check, encoding='utf-8')
                 exe = out/f'{name}.exe'
-                subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu',
+                subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG',
                                 '-O1', str(source), '-o', str(exe), '-lpthread'],
                     env=dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache')), check=True)
                 subprocess.run([str(exe)], check=True, timeout=10)

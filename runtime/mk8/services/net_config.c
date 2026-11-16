@@ -13,7 +13,8 @@
 static bool known(const char *key) {
     static const char *const keys[] = {"backend", "nex_test_server", "net_hosts", "tls_trust", "tls_ca",
                                        "id_token_file", "nex_token_file", "net_log", "net_log_data",
-                                       "nextendo_server", "nextendo_nat", "nextendo_tls_pin"};
+                                       "nextendo_server", "nextendo_nat", "nextendo_tls_pin",
+                                       "udp_port"};  // (toolchain/nextendo_services.py)
     for (size_t i = 0; i < sizeof keys / sizeof *keys; i++)
         if (!strcmp(keys[i], key)) return true;
     return false;
@@ -33,14 +34,20 @@ static bool value_of(const char *line, const char *key, char *out, size_t cap) {
     return true;
 }
 
+// Nextendo's game server picks its self-signed certificate by SNI [obs, 2026-11-12]: SMM2's host gets the key upstream
+// pins, MK8's g2b309e01-lp1.s.n.srv.nintendo.net gets another (CN=nintendo-private-server, 2026-07-13..2036-07-10),
+// so the upstream pin refused every MK8 connection and the game showed error 2306-0502. This is the SHA-256 of MK8's
+// SubjectPublicKeyInfo; nextendo_tls_pin in mk8net.ini (or RECOMP_NEXTENDO_TLS_PIN) still overrides it.
+#define MK8_NEXTENDO_PIN "770551f13152f3d55370de6c039d3859cff0d39882f27c6c9fc6cfdb327d74b8"
+
 bool game_net_config(const char *key, char *out, size_t cap) {
     FILE *f = known(key) ? fopen(NET_INI, "r") : NULL;
-    if (!f) return false;
     char line[1024];
     bool found = false;
-    while (fgets(line, sizeof line, f))
+    while (f && fgets(line, sizeof line, f))
         if (line[0] != '#') found |= value_of(line, key, out, cap);
-    fclose(f);
+    if (f) fclose(f);
+    if (!found && !strcmp(key, "nextendo_tls_pin")) snprintf(out, cap, "%s", MK8_NEXTENDO_PIN), found = true;
     return found;
 }
 

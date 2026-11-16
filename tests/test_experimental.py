@@ -31,7 +31,17 @@ void f_700080e1d8(Cpu *c) { assert(c->x[0]==child);reloads++; }
 void f_700080fa44(Cpu *c) { models++; }
 void f_7000810278(Cpu *c) { models++; }
 void f_7000812fc0(Cpu *c) { models++; }
+static int requests, panes;
+void f_700080f4a4(Cpu *c) { requests++; c->x[0] = 77; }
+void f_7000810c90(Cpu *c) { panes++; }
 int main(void) {
+ uint64_t engine[0x560/8] = {0}, workers = 5;
+ for(mode=0;mode<=1;mode++) for(int ready=0;ready<=1;ready++) {
+  Cpu r={0};engine[0x548/8]=ready ? (uint64_t)(uintptr_t)&workers : 0;r.x[0]=(uint64_t)(uintptr_t)engine;requests=0;
+  f_700080f4a4(&r);int skipped=mode && !ready;assert(requests==!skipped && r.x[0]==(skipped ? 0 : 77));
+  Cpu q={0};panes=0;f_7000810c90(&q);assert(panes==!mode);
+  q.x[0]=1;panes=0;f_7000810c90(&q);assert(panes==1);
+ }
  uint64_t parent[12]={0}, database=0;child=(uint64_t)(uintptr_t)&database;parent[11]=child;
  Cpu c={0};
  for(mode=0;mode<=1;mode++) {
@@ -266,7 +276,10 @@ void f_7000428a18(Cpu *c) { c->x[1]++; }
 void f_7000428d94(Cpu *c) { c->x[1]++; }
 void f_7000428f80(Cpu *c) { c->x[1]++; }
 void f_7000428fb0(Cpu *c) { c->x[1]++; }
+void f_7000428810(Cpu *c) { c->x[1]++; }
+void f_7000428838(Cpu *c) { c->x[1]++; }
 void f_70004288bc(Cpu *c) { c->x[0] = 1; }
+void f_7000428720(Cpu *c) { c->x[0] = 1; }
 int main(void) {
  uint32_t manager[16]={0}; Cpu c={0};
  for(mode=0;mode<=1;mode++) {
@@ -285,7 +298,10 @@ int main(void) {
    if(c.x[1]!=(mode&&!a&&!b?0:7))return 8;
    f_7000428d94(&c);f_7000428f80(&c);f_7000428fb0(&c);
    if(c.x[1]!=(mode&&!a&&!b?0:10))return 9;
+   f_7000428810(&c);f_7000428838(&c);
+   if(c.x[1]!=(mode&&!a&&!b?0:12))return 11;
    c.x[0]=object;f_70004288bc(&c);if(c.x[0]!=(mode&&!a&&!b?0:1))return 6;
+   c.x[0]=object;f_7000428720(&c);if(c.x[0]!=(mode&&!a&&!b?0:1))return 10;
   }
  }
  return 0;
@@ -319,6 +335,25 @@ int main(void) {
                     with self.assertRaises(ValueError):
                         experimental.patch_no_mii_unit(src, root/'out')
 
+    def test_model_part_guard_is_hash_bounded_and_skips_only_null(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            src = root/'main'/experimental.MODEL_PART_UNIT
+            src.parent.mkdir()
+            raw = b'void f_700069127c(Cpu *c) {\n    update_part(c);\n}\n'
+            src.write_bytes(raw)
+            with self.assertRaises(ValueError):
+                experimental.patch_no_mii_unit(src, root/'out')
+            with patch.object(experimental, 'MODEL_PART_SHA256', hashlib.sha256(raw).hexdigest()):
+                result = experimental.patch_no_mii_unit(src, root/'out').read_text()
+            self.assertEqual(src.read_bytes(), raw)
+            self.assertIn('if (!c->x[1] && mk8_no_mii_null_part(c->x[0])) return;\n    update_part(c);', result)
+            for invalid in (b'unrelated', raw+raw):
+                src.write_bytes(invalid)
+                with patch.object(experimental, 'MODEL_PART_SHA256', hashlib.sha256(invalid).hexdigest()):
+                    with self.assertRaises(ValueError):
+                        experimental.patch_no_mii_unit(src, root/'out')
+
     def test_ui_model_policy_preserves_normal_path_and_original(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -329,9 +364,11 @@ int main(void) {
             raw += b'void f_7000428a34(Cpu *c) { animate_mii_slots(c); }\n'
             for address in ('7000428880', '70004288a0', '7000428900',
                             '70004289ac', '70004289d0', '7000428a18',
-                            '7000428d94', '7000428f80', '7000428fb0'):
+                            '7000428d94', '7000428f80', '7000428fb0',
+                            '7000428810', '7000428838'):
                 raw += f'void f_{address}(Cpu *c) {{ animate_mii_slots(c); }}\n'.encode()
             raw += b'void f_70004288bc(Cpu *c) { query_mii_pose(c); }\n'
+            raw += b'void f_7000428720(Cpu *c) { query_mii_pose(c); }\n'
             src.write_bytes(raw)
             with self.assertRaises(ValueError):
                 experimental.patch_no_mii_unit(src, root/'out')
@@ -438,7 +475,7 @@ int main(int argc, char **argv) {
             exe = root/'setjmp.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(Path(__file__).resolve().parents[1]/'local/native-tools/cache'))
             for level in ('-O1', '-O2'):
-                subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', level, '-I'+str(root/'inc'),
+                subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', level, '-I'+str(root/'inc'),
                                 str(result), str(runtime), '-o', str(exe)], env=env, check=True)
                 subprocess.run([str(exe)], check=True)
                 self.assertEqual(subprocess.run([str(exe), 'stale'], capture_output=True).returncode, 3)
@@ -448,7 +485,7 @@ int main(int argc, char **argv) {
             root = Path(folder)
             src = root/'main'/experimental.UNIT
             src.parent.mkdir()
-            raw = b'void f_700080fa44(Cpu *c) { original(c); }\nvoid f_7000810278(Cpu *c) { update(c); }\nvoid f_7000812fc0(Cpu *c) { notify(c); }\n'
+            raw = b'void f_700080fa44(Cpu *c) { original(c); }\nvoid f_7000810278(Cpu *c) { update(c); }\nvoid f_7000812fc0(Cpu *c) { notify(c); }\nvoid f_700080f4a4(Cpu *c) { request(c); }\nvoid f_7000810c90(Cpu *c) { pane(c); }\n'
             src.write_bytes(raw)
             with self.assertRaises(ValueError):
                 experimental.patch_no_mii_unit(src, root/'out')
@@ -460,5 +497,8 @@ int main(int argc, char **argv) {
             self.assertIn('original(c);', text)
             self.assertIn('if (!c->x[0] && mk8_no_mii_renderer()) return;', text)
             self.assertIn('notify(c);', text)
+            self.assertIn('!LD64(c->x[0] + 0x548)) { c->x[0] = 0; return; }', text)
+            self.assertIn('request(c);', text)
+            self.assertIn('pane(c);', text)
             other = root/'sdk'/'sdk_001.c'
             self.assertEqual(experimental.patch_no_mii_unit(other, root/'out'), other)

@@ -68,6 +68,14 @@ static unsigned mk8_mii_count(uint32_t sources, bool local) {
     return ((sources & 1) && local ? 1 : 0) + (sources & 2 ? 6 : 0);
 }
 
+static unsigned mk8_mii_get(uint8_t *out, size_t bytes, size_t stride, uint32_t sources, bool local);
+// UpdateLatest/GetIndex against the database's one local entry, matched by create ID (first 16 bytes):
+// 0 = found and newer (copied to latest), else the nn::mii result description 3 NotUpdated / 4 NotFound.
+static unsigned mk8_mii_latest(const uint8_t *info, uint32_t sources, bool local, uint8_t latest[0x58]) {
+    if (!mk8_mii_get(latest, 0x58, 0x58, sources & 1, local) || memcmp(latest, info, 16)) return 4;
+    return memcmp(latest, info, 0x58) ? 0 : 3;
+}
+
 static unsigned mk8_mii_get(uint8_t *out, size_t bytes, size_t stride, uint32_t sources, bool local) {
     if (!out || (stride != 0x58 && stride != 0x5c)) return 0;
     unsigned count = 0;

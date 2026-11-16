@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
 ''', encoding='utf-8')
             exe = out/'submit.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', str(source), '-o', str(exe)],
+            subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2', str(source), '-o', str(exe)],
                            env=env, check=True)
             clean = {k: v for k, v in os.environ.items() if k not in ('MK8_DEFER_COMPUTE_FLUSH', 'MK8_COMPUTE_SUBMIT')}
             for mode, options in [(2, {}), (0, {'MK8_DEFER_COMPUTE_FLUSH': '0'}),
@@ -149,7 +149,7 @@ int main(void) {
             source.write_text(fixture + track + readers + draw + checks, encoding='utf-8')
             exe = out/'cw.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', '-I'+str(DEPS/'include'),
+            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2', '-I'+str(DEPS/'include'),
                                     str(source), '-o', str(exe)], env=env, capture_output=True, text=True)
             self.assertEqual(build.returncode, 0, build.stderr[-3000:])
             subprocess.run([str(exe)], check=True, timeout=30)
@@ -198,7 +198,7 @@ int main(void) {
 ''', encoding='utf-8')
             exe = out/'report.exe'
             env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(ROOT/'local/native-tools/cache'))
-            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-O2', str(source), '-o', str(exe)],
+            build = subprocess.run([str(DEFAULT_COMPILER), 'cc', '-target', 'x86_64-windows-gnu', '-UNDEBUG', '-O2', str(source), '-o', str(exe)],
                                    env=env, capture_output=True, text=True)
             self.assertEqual(build.returncode, 0, build.stderr[-3000:])
             subprocess.run([str(exe)], check=True, timeout=30)

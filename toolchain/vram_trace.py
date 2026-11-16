@@ -43,8 +43,7 @@ void mk8_vram_report(void) {
             vc_bytes / 1048576.0, mk8_live_textures());
     }
     extern void mk8_texture_age_report(void);
-    static int every;
-    if (every++ % 3 == 0) mk8_texture_age_report();  // (every 30 s)
+    mk8_texture_age_report();  // (every 10 s: an online live view exhausted VRAM within ~20 s)
 }
 '''
 LIVE = '''static void live_remove(TexBackend *b) {'''
@@ -79,8 +78,7 @@ void mk8_texture_age_report(void) {
         int k = age <= 60 ? 0 : age <= 3600 ? 1 : 2;
         count[k]++;
         bytes[k] += info.size;
-        if (k != 2) continue;
-        {
+        if (k == 2) {
             if (listed < 16 && info.size >= (4u << 20)) {
                 listed++;
                 NvnTexture *t = g_live[i];
@@ -91,6 +89,7 @@ void mk8_texture_age_report(void) {
                     __atomic_load_n(&t->mk8_finalized, __ATOMIC_RELAXED), b->refs);
             }
         }
+        if (k == 0) continue;  // (shapes: textures not used this second)
         int s = 0;
         while (s < nshapes && !(shapes[s].w == b->width && shapes[s].h == b->height && shapes[s].fmt == (uint32_t)b->format &&
                                 shapes[s].layers == b->layers)) s++;
@@ -108,7 +107,7 @@ void mk8_texture_age_report(void) {
     mk8_command_lifetime_report();
     for (int s = 0; s < nshapes; s++)
         if (shapes[s].bytes >= (4u << 20))
-            LOG("[mk8:vram]   older: %ux%u vk format %u x%u layers: %llu textures, %.0f MB\\n", shapes[s].w, shapes[s].h,
+            LOG("[mk8:vram]   not used this second: %ux%u vk format %u x%u layers: %llu textures, %.0f MB\\n", shapes[s].w, shapes[s].h,
                 shapes[s].fmt, shapes[s].layers, (unsigned long long)shapes[s].n, shapes[s].bytes / 1048576.0);
 }
 ''' + LIVE
@@ -198,6 +197,11 @@ def prepare(runtime):
     text = textures.read_text(encoding='utf-8')
     if text.count(LIVE) != 1 or text.count(USE) != 1:
         raise ValueError('Live texture list boundary changed upstream')
+    text = replace(text, '        LOG("[vk] image creation failed (%d)', '''        if (getenv("MK8_TRACE_VRAM")) {  // MK8 (toolchain/vram_trace.py): what holds the memory when it runs out
+            extern void mk8_vram_report(void);
+            mk8_vram_report();
+        }
+        LOG("[vk] image creation failed (%d)''')
     textures.write_text(text.replace(LIVE, LIVE_COUNT).replace(USE, USED) + UNLISTED, encoding='utf-8')
     header = runtime/'nvn/vulkan/vk.h'
     text = header.read_text(encoding='utf-8')

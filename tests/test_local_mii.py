@@ -88,6 +88,11 @@ int main(void) {
  _putenv_s("MK8_MII_FACE","040203050201015a2d");assert(mk8_profile_charinfo(out));assert(out[0x2e]==4 && out[0x31]==12);
  _putenv_s("MK8_MII_FACE","");assert(mk8_profile_charinfo(out));assert(out[0x27]==3 && out[0x28]==0);
  assert(out[16]=='L' && out[18]=='u' && out[8]==0x80 && out[15]==0xff);
+ uint8_t latest[0x58], saved[0x58];memcpy(saved,out,0x58);
+ assert(mk8_mii_latest(saved,1,true,latest)==3);                                // same Mii: NotUpdated
+ saved[16]='X';assert(mk8_mii_latest(saved,1,true,latest)==0 && !memcmp(latest,out,0x58));  // edited: latest
+ saved[0]^=1;assert(mk8_mii_latest(saved,1,true,latest)==4);                    // another create ID: NotFound
+ assert(mk8_mii_latest(out,2,true,latest)==4 && mk8_mii_latest(out,1,false,latest)==4);
  uint8_t list[7*0x5c+4];memset(list,0xcc,sizeof list);
  assert(mk8_mii_count(1,true)==1 && mk8_mii_count(2,true)==6 && mk8_mii_count(3,true)==7);
  assert(mk8_mii_count(1,false)==0 && mk8_mii_count(0,true)==0);

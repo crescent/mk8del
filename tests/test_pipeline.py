@@ -148,6 +148,9 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("required host service is not implemented",dispatch)
             self.assertIn("RECOMP_MODULES(TABLE)",(out/"tools/gamelib_entry.c").read_text())
             self.assertIn("X(subsdk4,", (out/"runtime/module_config.h").read_text())
+            menu=(out/"runtime/ui/menu.mm").read_text()
+            for gone in ('opt_choice("Aspect ratio"','opt_toggle("Skip intro"','choice("Button icons"'):
+                self.assertIn("if (0",menu[menu.index(gone)-40:menu.index(gone)]) if gone!='choice("Button icons"' else self.assertNotIn('header("Button prompts")',menu)
             with self.assertRaisesRegex(ValueError,"fresh"):
                 adapter.prepare(ROOT/"upstream/smm2recomp",out)
 

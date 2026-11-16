@@ -40,6 +40,121 @@ void mk8_commands_pool_finalized(uintptr_t pool, uint64_t storage, uint64_t size
 '''
 
 
+ORPHANS = '''// MK8 (toolchain/texture_lifetime.py): an image let go by a re-initialized texture object stays ~2 s in the alias
+// table (finalized textures free theirs at once, as before: course changes would otherwise overlap in memory). MK8
+// initializes its texture objects again over the same storage every frame (runtime/mk8/graphics/texture_refs.inc
+// detaches the earlier one); the next one of the same shape takes the image back with its contents, as the storage
+// keeps them on the Switch. Shapes no longer used (MK8's dynamic resolution: 1862x1046, 1856x1044...) are freed.
+// Under memory pressure (exec.c mk8_vram_tight) they wait 2 frames: a course load dropped to 4 fps, the dynamic
+// resolution picked a new size every frame and 3.3 GB of them piled up within 70 frames (8 GB card, 2x resolution).
+#define MK8_ORPHAN_FRAMES 120
+bool mk8_vram_tight(void);
+static uint64_t mk8_keep_frames(void) { return mk8_vram_tight() ? 2 : MK8_ORPHAN_FRAMES; }
+static TexBackend **mk8_orphans;
+static int mk8_norphans, mk8_cap_orphans;
+static uint64_t mk8_orphans_swept;
+static bool mk8_detaching;
+static void backend_free(TexBackend *b);
+static bool mk8_orphan_keep(NvnTexture *t, TexBackend *b) {
+    if (!mk8_detaching || !alias_on(t)) return false;
+    bool listed = false;
+    for (Alias *a = g_alias[alias_bucket(t->addr)]; a && !listed; a = a->next) listed = a->b == b;
+    if (!listed) return false;
+    b->mk8_orphaned = renderer_present_count();
+    if (!b->mk8_orphan_listed) {
+        if (mk8_norphans == mk8_cap_orphans) {
+            int cap = mk8_cap_orphans ? mk8_cap_orphans * 2 : 256;
+            TexBackend **grown = realloc(mk8_orphans, (size_t)cap * sizeof *grown);
+            if (!grown) FATAL("Orphan texture list allocation failed\\n");
+            mk8_orphans = grown;
+            mk8_cap_orphans = cap;
+        }
+        mk8_orphans[mk8_norphans++] = b;
+        b->mk8_orphan_listed = true;
+    }
+    return true;
+}
+// (once per presented frame; taken back ones leave the list, the rest go after MK8_ORPHAN_FRAMES)
+static void mk8_orphans_sweep(void) {
+    uint64_t now = renderer_present_count();
+    if (!mk8_norphans || now == mk8_orphans_swept) return;
+    mk8_orphans_swept = now;
+    uint64_t keep = mk8_keep_frames();
+    int k = 0;
+    for (int i = 0; i < mk8_norphans; i++) {
+        TexBackend *b = mk8_orphans[i];
+        if (b->refs <= 0 && now - b->mk8_orphaned <= keep) { mk8_orphans[k++] = b; continue; }
+        b->mk8_orphan_listed = false;
+        if (b->refs <= 0) backend_free(b);
+    }
+    mk8_norphans = k;
+}
+
+// MK8's dynamic resolution draws its render targets at a new size over the same storage. On the Switch that overwrites
+// the earlier sizes; here each size had its own image, held by texture objects the game never finalizes (an online
+// session at 2x resolution ran out of 8 GB within 30 minutes). A new scalable target retires the images of the other
+// shapes over its storage that went unused for MK8_ORPHAN_FRAMES; their backends stay (a later use recreates the
+// image: textures.c tex_backend, toolchain/pool_release.py).
+static void mk8_retire_other_shapes(NvnTexture *t, TexBackend *b) {
+    uint64_t now = renderer_present_count(), bytes = 0, keep = mk8_keep_frames();
+    int n = 0;
+    for (Alias *a = g_alias[alias_bucket(t->addr)]; a; a = a->next) {
+        TexBackend *o = a->b;
+        if (a->addr != t->addr || o == b || !o->scalable || !o->image || now - o->mk8_last_use <= keep) continue;
+        if (o->mem) {
+            VmaAllocationInfo info;
+            vmaGetAllocationInfo(g_vk.vma, o->mem, &info);
+            bytes += info.size;
+        }
+        destroy_image(o);  // (deferred until the submissions that used it complete)
+        o->uploaded = o->gpu_owned = false;
+        n++;
+    }
+    static uint64_t total, logged;
+    total += bytes;
+    if (n && (logged++ < 8 || logged % 500 == 0))
+        LOG("[mk8:tex] %ux%u target over %llx: %d image(s) of other sizes retired (%.1f MB; %.0f MB so far)\\n",
+            t->width, t->height, (unsigned long long)t->addr, n, bytes / 1048576.0, total / 1048576.0);
+}
+
+'''
+
+TIGHT = '''// MK8 (toolchain/texture_lifetime.py): the main device-local heap over 60% of its budget, checked once per frame.
+// (Only the largest: the 256 MB BAR heap normally sits above 90%.)
+bool mk8_vram_tight(void) {
+    static uint64_t frame = ~0ull;
+    static bool tight;
+    uint64_t now = renderer_present_count();
+    if (now == frame) return tight;
+    frame = now;
+    VmaBudget budget[VK_MAX_MEMORY_HEAPS];
+    memset(budget, 0, sizeof budget);
+    vmaGetHeapBudgets(g_vk.vma, budget);
+    const VkPhysicalDeviceMemoryProperties *mp;
+    vmaGetMemoryProperties(g_vk.vma, &mp);
+    int big = -1;
+    for (uint32_t i = 0; i < mp->memoryHeapCount; i++)
+        if ((mp->memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) &&
+            (big < 0 || mp->memoryHeaps[i].size > mp->memoryHeaps[big].size)) big = (int)i;
+    bool was = tight;
+    tight = big >= 0 && budget[big].usage * 5 > budget[big].budget * 3;
+    static int logged;
+    if (tight != was && logged++ < 20) LOG("[mk8:vram] %.0f of %.0f MB: %s\\n", budget[big].usage / 1048576.0, budget[big].budget / 1048576.0,
+                          tight ? "images waiting to be taken back kept 2 frames" : "kept 2 s again");
+    return tight;
+}
+'''
+
+DETACH = '''// MK8 (texture_refs.inc): a texture object initialized again; the texture itself may still be used through a copy
+void mk8_texture_detach(NvnTexture *t) {
+    if (!t->backend || !alias_on(t)) return;
+    mk8_detaching = true;
+    backend_texture_destroyed(t);
+    mk8_detaching = false;
+}
+
+'''
+
 def replace(text, old, new, count=1):
     if text.count(old) != count:
         raise ValueError(f'Texture ownership boundary changed: {old[:90]}')
@@ -49,7 +164,7 @@ def replace(text, old, new, count=1):
 def prepare(runtime):
     header = runtime/'nvn/nvn.h'
     text = header.read_text(encoding='utf-8')
-    text = replace(text, '    char label[64];\n} NvnTexture;', '    char label[64];\n    unsigned mk8_refs;\n} NvnTexture;\nNvnTexture *mk8_texture_retain(NvnTexture *t);\nvoid mk8_texture_release(NvnTexture *t);')
+    text = replace(text, '    char label[64];\n} NvnTexture;', '    char label[64];\n    unsigned mk8_refs;\n    uint64_t mk8_owner;  // guest texture object it was made for (texture_refs.inc)\n} NvnTexture;\nNvnTexture *mk8_texture_retain(NvnTexture *t);\nvoid mk8_texture_release(NvnTexture *t);\nNvnTexture *mk8_texture_adopt(uint64_t object, NvnTexture *t);\nvoid mk8_texture_disown(NvnTexture *t);\nvoid mk8_texture_abandoned(NvnTexture *t);')
     text = replace(text, '    uint8_t extra[];', '    struct Mk8TextureRefs *mk8_textures;\n    uint8_t extra[];')
     text = replace(text, '    uint8_t *calls_only[64];', '    uintptr_t mk8_cmd_pool;  // owner identity of command memory\n    uint8_t *calls_only[64];')
     header.write_text(text, encoding='utf-8')
@@ -58,6 +173,22 @@ def prepare(runtime):
     text = objects.read_text(encoding='utf-8')
     text = replace(text, '    NvnTexture *t = calloc(1, sizeof *t);', '    NvnTexture *t = calloc(1, sizeof *t);\n    if (!t) FATAL("Texture allocation failed\\n");\n    t->mk8_refs = 1;')
     text = replace(text, 'backend_texture_destroyed(t); free(t);', 'mk8_texture_release(t);')
+    # A texture object initialized again without finalizing (runtime/mk8/graphics/texture_refs.inc)
+    text = replace(text, '    SET_HOST(A(0), t);\n    RET(1);\n}\nNVN(nvnTextureFinalize) {\n    NvnTexture *t = HOST(NvnTexture, A(0));\n', '''    NvnTexture *mk8_stale = mk8_texture_adopt(A(0), t);
+    if (mk8_stale) {
+        static uint64_t mk8_reinit;
+        if (mk8_reinit++ < 8 || mk8_reinit % 100000 == 0)
+            LOG("[mk8:tex] object %llx initialized again without finalize: its %ux%u texture lets go of its image (%llu so far)\\n",
+                A(0), mk8_stale->width, mk8_stale->height, (unsigned long long)mk8_reinit);
+        mk8_texture_abandoned(mk8_stale);
+    }
+    SET_HOST(A(0), t);
+    RET(1);
+}
+NVN(nvnTextureFinalize) {
+    NvnTexture *t = HOST(NvnTexture, A(0));
+    if (t) mk8_texture_disown(t);
+''')
     text = replace(text, '    e->tex = HOST(NvnTexture, A(2));', '    NvnTexture *next = mk8_texture_retain(HOST(NvnTexture, A(2)));\n    mk8_texture_release(e->tex);\n    e->tex = next;')
     text = replace(text, '''NVN(nvnMemoryPoolFinalize) {
     NvnPool *p = HOST(NvnPool, A(0));
@@ -99,8 +230,27 @@ def prepare(runtime):
     text = replace(text, '    memcpy(r->extra, t, sizeof t);', '    mk8_command_texture(r, t[0].tex);\n    mk8_command_texture(r, t[1].tex);\n    memcpy(r->extra, t, sizeof t);', 3)
     commands.write_text(text, encoding='utf-8')
 
+    header = runtime/'nvn/vulkan/vk.h'
+    text = header.read_text(encoding='utf-8')
+    refs = '    int refs;  // texture objects sharing it (aliases of the same storage: textures.c tex_backend)\n'
+    text = replace(text, refs, refs + '    uint64_t mk8_orphaned;  // frame its last texture object went (texture_lifetime.py)\n    uint64_t mk8_last_use;  // frame of its last lookup\n    bool mk8_orphan_listed;\n')
+    header.write_text(text, encoding='utf-8')
+    textures = runtime/'nvn/vulkan/textures.c'
+    text = textures.read_text(encoding='utf-8')
+    text = replace(text, 'static TexBackend *tex_backend(NvnTexture *t) {', ORPHANS + 'static TexBackend *tex_backend(NvnTexture *t) {')
+    text = replace(text, '        return b;\n    }\n    if (alias_on(t)) {\n', '        b->mk8_last_use = renderer_present_count();\n        return b;\n    }\n    mk8_orphans_sweep();\n    if (alias_on(t)) {\n')
+    text = replace(text, '    if (--b->refs > 0) return;  // other textures over the same storage still use it\n',
+                   '    if (--b->refs > 0) return;  // other textures over the same storage still use it\n'
+                   '    if (mk8_orphan_keep(t, b)) return;  // MK8: a re-initialized object may take it back\n')
+    text = replace(text, '// Reboot (device.c backend_reset', DETACH + '// Reboot (device.c backend_reset')
+    text = replace(text, '    b->scalable = tex_scalable(t);\n    create_image(t, b);\n',
+                   '    b->scalable = tex_scalable(t);\n    b->mk8_last_use = renderer_present_count();\n    if (b->scalable) mk8_retire_other_shapes(t, b);\n    create_image(t, b);\n')
+    text = replace(text, '    vk_collect_dead();\n    LOG("[vk] reboot:', '    mk8_norphans = 0;  // (freed through the alias table above)\n    vk_collect_dead();\n    LOG("[vk] reboot:')
+    textures.write_text(text, encoding='utf-8')
+
     execute = runtime/'nvn/vulkan/exec.c'
     text = execute.read_text(encoding='utf-8')
+    text = replace(text, 'uint64_t renderer_present_count(void);\n', 'uint64_t renderer_present_count(void);\n' + TIGHT)
     text = replace(text, 'static void st_defaults(void) {', '''static void mk8_rt_retain(const RtState *rt) {
     for (int i = 0; i < rt->ncolor; i++) mk8_texture_retain(rt->color[i]);
     mk8_texture_retain(rt->depth);
